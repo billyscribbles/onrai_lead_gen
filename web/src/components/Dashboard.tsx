@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { logout } from '../lib/api'
 import { sortLeads } from '../lib/leads'
@@ -12,6 +12,8 @@ import { StatStrip } from './StatStrip'
 import { LeadRow } from './LeadRow'
 import { LeadDrawer } from './LeadDrawer'
 import { GenerateSection } from './GenerateSection'
+import { RunWidget } from './RunWidget'
+import { useActiveRun } from '../run/RunProvider'
 import { TableFilters } from './TableFilters'
 import { industryGroup, industryOptions } from '../lib/industry'
 
@@ -49,6 +51,18 @@ export function Dashboard({
   onSignedOut: () => void
 }) {
   const { leads, loading, error, reload } = useLeads()
+  const { run, dismiss: dismissRun } = useActiveRun()
+  const reloadedFor = useRef<number | null>(null)
+
+  // When a background run finishes, refresh the leads sheet once — no matter
+  // which view the user is currently on.
+  useEffect(() => {
+    if (run && run.status === 'done' && reloadedFor.current !== run.id) {
+      reloadedFor.current = run.id
+      reload()
+    }
+  }, [run, reload])
+
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
   const [view, setView] = useState<'leads' | 'generate'>('leads')
@@ -61,8 +75,9 @@ export function Dashboard({
   // Clear the cookie, then drop back to the login screen even if the request
   // hiccups — the local session is over regardless.
   const handleLogout = useCallback(() => {
+    dismissRun()
     logout().finally(onSignedOut)
-  }, [onSignedOut])
+  }, [dismissRun, onSignedOut])
 
   const industries = useMemo(
     () => industryOptions(leads.map((l) => l.category)),
@@ -207,6 +222,10 @@ export function Dashboard({
           </section>
         )}
       </main>
+
+      {view !== 'generate' && (
+        <RunWidget onView={() => setView('generate')} />
+      )}
 
       <LeadDrawer lead={active} onClose={() => setActive(null)} />
     </div>

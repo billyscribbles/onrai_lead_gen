@@ -40,3 +40,24 @@ clothing store
 boutique
 wholesaler
 homewares
+
+# Real estate
+real estate agency
+property management
+
+# Legal / consultancy
+law firm
+business consultant
+
+# Education
+tutoring service
+driving school
+childcare centre
+
+# Hospitality / tourism
+hotel
+motel
+travel agency
+
+# Automotive
+car dealership

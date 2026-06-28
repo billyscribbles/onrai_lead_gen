@@ -39,7 +39,7 @@
   --shadow-lg: 0 12px 40px rgba(24, 24, 27, 0.1), 0 4px 12px rgba(24, 24, 27, 0.06);
 
   --rail-w: 268px;
-  --sheet-cols: 2.4rem minmax(0, 1fr) 6.6rem 8rem 12.5rem 9rem 7.4rem;
+  --sheet-cols: 2.4rem minmax(0, 1fr) 6.6rem 8rem 12.5rem 9rem 5.6rem 7.4rem;
 
   color-scheme: light;
   font-family: var(--sans);
@@ -261,6 +261,28 @@ button {
 
 .rail__item.is-active .rail__count {
   color: var(--signal-ink);
+}
+
+.rail__item--new:not(.is-active) {
+  color: #fff;
+}
+
+.rail__item--new:not(.is-active) .rail__item-lbl svg {
+  color: var(--signal);
+}
+
+.rail__count--new {
+  min-width: 18px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  text-align: center;
+  background: var(--signal);
+  color: var(--signal-ink);
+}
+
+.rail__item.is-active .rail__count--new {
+  background: var(--signal-ink);
+  color: #fff;
 }
 
 .rail__select select,
@@ -537,6 +559,36 @@ button {
 
 /* ============================== Sheet ================================= */
 
+.newleads {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.newleads__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--signal);
+  border-radius: var(--radius);
+  background: var(--signal-soft);
+}
+
+.newleads__sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.newleads__actions {
+  display: flex;
+  gap: 8px;
+}
+
 .sheet {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -778,6 +830,14 @@ button {
   color: var(--muted);
   width: 22px;
   text-align: right;
+}
+
+/* generated-on date */
+.row__date {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* quick actions */
@@ -1099,8 +1159,10 @@ button {
   .sheet__head span:nth-child(5),
   .sheet__head span:nth-child(6),
   .sheet__head span:nth-child(7),
+  .sheet__head span:nth-child(8),
   .row__reach,
   .row__heat,
+  .row__date,
   .row__actions {
     display: none;
   }
@@ -1884,4 +1946,61 @@ button {
   color: var(--ink);
   border-color: var(--slate);
   background: var(--slate-soft);
+}
+
+/* ============================ Modal ============================= */
+.modal__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 24, 27, 0.32);
+  animation: modal-fade 0.16s ease;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal__card {
+  width: min(420px, calc(100vw - 40px));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  padding: 22px;
+}
+
+.modal__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.modal__body {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn--danger {
+  border-color: #e2b3a6;
+  background: #fff;
+  color: #b42318;
+}
+
+.btn--danger:hover {
+  border-color: #d98a76;
+  background: #fdf3f0;
 }

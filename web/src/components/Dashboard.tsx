@@ -7,6 +7,7 @@ import {
   FilterRail,
   type Filters,
   type StatusFilter,
+  type LeadBucket,
 } from './FilterRail'
 import { StatStrip } from './StatStrip'
 import { LeadRow } from './LeadRow'
@@ -22,6 +23,7 @@ const DEFAULT_FILTERS: Filters = {
   suburb: '',
   phoneOnly: false,
   sort: 'hot',
+  bucket: 'active',
 }
 
 const AUTH_ERROR = 'Not authenticated'
@@ -30,6 +32,12 @@ function matchesStatus(lead: Lead, status: StatusFilter): boolean {
   if (status === 'all') return true
   if (status === 'top') return lead.tier === 1
   return lead.webStatus === status
+}
+
+function matchesBucket(lead: Lead, bucket: LeadBucket): boolean {
+  if (bucket === 'favourites') return lead.userStatus === 'favourite'
+  if (bucket === 'archived') return lead.userStatus === 'archived'
+  return lead.userStatus !== 'archived' // 'active': normal + favourite
 }
 
 function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
@@ -87,6 +95,7 @@ export function Dashboard({
   const visible = useMemo(() => {
     const q = filters.query.trim().toLowerCase()
     const filtered = leads.filter((l) => {
+      if (!matchesBucket(l, filters.bucket)) return false
       if (!matchesStatus(l, filters.status)) return false
       if (filters.category && industryGroup(l.category) !== filters.category) return false
       if (filters.suburb && l.suburb !== filters.suburb) return false

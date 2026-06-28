@@ -3,6 +3,7 @@ import { estimateRun, type Estimate, type GenParams } from '../lib/api'
 import { useActiveRun } from '../run/RunProvider'
 import { progressFor, runPhase } from '../run/progress'
 import { ConfirmDialog } from './ConfirmDialog'
+import { RunDetails } from './RunDetails'
 
 interface Props {
   /** Jump back to the leads view. */
@@ -51,7 +52,7 @@ export function GenerateSection({ onViewLeads }: Props) {
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [estimating, setEstimating] = useState(false)
 
-  const { runId, run, error, start, dismiss, abort, aborting } = useActiveRun()
+  const { runId, run, error, start, dismiss, abort, aborting, stalled } = useActiveRun()
   const phase = runPhase(runId, run, error)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -98,6 +99,13 @@ export function GenerateSection({ onViewLeads }: Props) {
   }
 
   function reset() {
+    dismiss()
+  }
+
+  // Stop the run, then drop straight back to the scope form so the user can
+  // tweak their scope and start fresh — no intermediate "Start over" screen.
+  function stopAndReset() {
+    void abort()
     dismiss()
   }
 
@@ -344,18 +352,21 @@ export function GenerateSection({ onViewLeads }: Props) {
       {(phase === 'running' || phase === 'done') && (
         <div className="gen__progress" aria-live="polite">
           <div className="gen__progress-head">
-            <span>{prog.label}</span>
+            <span className={stalled && busy ? 'gen__progress-stalled' : ''}>
+              {prog.label}
+            </span>
             <span className="mono">{prog.pct}%</span>
           </div>
           <div className="gen__track">
             <div
-              className={`gen__fill ${busy ? 'is-animated' : ''}`}
+              className={`gen__fill ${busy ? 'is-animated' : ''} ${stalled && busy ? 'is-stalled' : ''}`}
               style={{ width: `${prog.pct}%` }}
             />
           </div>
           {run?.places_scraped ? (
             <p className="gen__progress-sub mono">{run.places_scraped} listings seen</p>
           ) : null}
+          <RunDetails open={stalled && busy} />
         </div>
       )}
 
@@ -365,6 +376,13 @@ export function GenerateSection({ onViewLeads }: Props) {
             Found <strong>{run.leads_found}</strong>{' '}
             {run.leads_found === 1 ? 'lead' : 'leads'} for{' '}
             <strong>{category}</strong> — saved to the database.
+            {run.cost_actual != null && (
+              <> Apify cost <strong className="mono">${run.cost_actual.toFixed(3)}</strong>
+                {run.cost_estimate != null && (
+                  <span className="gen__est-muted"> (est ${run.cost_estimate.toFixed(3)})</span>
+                )}.
+              </>
+            )}
           </p>
           <div className="gen__result-actions">
             <button type="button" className="btn btn--primary" onClick={onViewLeads}>
@@ -384,24 +402,15 @@ export function GenerateSection({ onViewLeads }: Props) {
         </div>
       )}
 
-      {phase === 'aborted' && (
-        <div className="gen__result">
-          <p>Run stopped. No leads from this run were saved.</p>
-          <button type="button" className="btn" onClick={reset}>
-            Start over
-          </button>
-        </div>
-      )}
-
       <ConfirmDialog
         open={confirmOpen}
         title="Stop this run?"
-        message="Apify scraping will be aborted and no leads from this run will be saved."
+        message="Apify scraping will be aborted and no leads from this run will be saved. You'll be returned to the scope form to start fresh."
         confirmLabel="Stop run"
         danger
         onConfirm={() => {
           setConfirmOpen(false)
-          void abort()
+          stopAndReset()
         }}
         onCancel={() => setConfirmOpen(false)}
       />

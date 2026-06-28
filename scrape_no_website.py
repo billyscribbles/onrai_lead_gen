@@ -62,23 +62,46 @@ _POLL_INTERVAL = 2.0  # seconds between Apify run status polls
 _TERMINAL_RUN_STATUSES = {"SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"}
 
 
-def _wait_for_run(client, run_id, should_abort=None, on_tick=None):
-    """Block until an Apify run finishes; abort it if should_abort() turns true.
+def _wait_for_run(client, run_id, should_abort=None, on_tick=None,
+                  count_fn=None, plateau_secs=None, max_run_secs=None):
+    """Block until an Apify run finishes; return ``(run_dict, reason)``.
 
-    Returns the terminal run dict. Raises RunAborted after asking Apify to abort
-    the run, so the caller never pays for or reads a half-finished scrape.
-    ``on_tick`` is called on each poll while the run is still going, so callers
-    can surface live progress (e.g. listings scraped so far)."""
+    ``reason`` is one of:
+      - ``"completed"`` — the actor reached a terminal status on its own.
+      - ``"plateau"``   — the live item count stopped growing for ``plateau_secs``
+        (the documented Maps-actor wind-down hang). We abort the now-idle actor
+        but KEEP the data already collected, so the caller can classify it for free.
+      - ``"timeout"``   — total elapsed exceeded ``max_run_secs``; same keep-data
+        finalize as a plateau.
+
+    A user abort (``should_abort()`` turning true) still raises ``RunAborted`` and
+    discards the scrape — only the watchdog finalizes-with-data. ``on_tick`` is
+    called with the current item count each poll for live progress; ``count_fn``
+    returns that count and also drives plateau detection."""
     run_client = client.run(run_id)
+    start = time.monotonic()
+    last_count = -1
+    last_increase = start
     while True:
         if should_abort is not None and should_abort():
             run_client.abort()
             raise RunAborted(f"Apify run {run_id} aborted by user")
         run = run_client.get()
         if run.get("status") in _TERMINAL_RUN_STATUSES:
-            return run
+            return run, "completed"
+        now = time.monotonic()
+        count = count_fn() if count_fn is not None else 0
+        if count > last_count:
+            last_count = count
+            last_increase = now
         if on_tick is not None:
-            on_tick()
+            on_tick(count)
+        if max_run_secs and (now - start) >= max_run_secs:
+            run_client.abort()
+            return run, "timeout"
+        if plateau_secs and count > 0 and (now - last_increase) >= plateau_secs:
+            run_client.abort()
+            return run, "plateau"
         time.sleep(_POLL_INTERVAL)
 
 
@@ -173,15 +196,21 @@ def build_search_strings(categories, suburbs, max_searches, skip_pairs=None):
 
 
 def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
-                    should_abort=None, on_run_start=None, on_count=None):
-    """Look up every search string on Google Maps; return all place items.
+                    should_abort=None, on_run_start=None, on_count=None,
+                    plateau_secs=None, max_run_secs=None):
+    """Look up every search string on Google Maps; return ``(places, finalized_early)``.
 
     Uses .start()+poll (not the blocking .call()) so a caller can force-abort
     the in-flight Apify run via ``should_abort``. ``on_run_start`` receives each
     Apify run id as soon as it is known, so callers can persist it for abort.
     ``on_count`` receives the running tally of listings scraped so far (across
-    chunks), so callers can show live progress during the slow scrape."""
+    chunks), so callers can show live progress during the slow scrape.
+
+    ``plateau_secs``/``max_run_secs`` arm the wind-down watchdog (see
+    ``_wait_for_run``): if a chunk's actor stalls or overruns we keep what it
+    collected and stop launching further chunks, returning ``finalized_early=True``."""
     places = []
+    finalized_early = False
     for start in range(0, len(search_strings), chunk_size):
         chunk = search_strings[start:start + chunk_size]
         run_input = {
@@ -198,18 +227,28 @@ def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
         ds_id = started.get("defaultDatasetId")
         if on_run_start is not None:
             on_run_start(run_id)
-        # Poll the dataset's live item count so the bar climbs while we wait.
+        # Poll the dataset's live item count so the bar climbs while we wait and
+        # so the watchdog can spot a plateau.
         done_so_far = len(places)
-        tick = None
-        if on_count is not None and ds_id:
-            tick = lambda: on_count(done_so_far + _dataset_count(client, ds_id))
-        run = _wait_for_run(client, run_id, should_abort, on_tick=tick)
-        _check_run_dict(run, "Google Maps lookup")
+        count_fn = None
+        if ds_id:
+            count_fn = lambda: done_so_far + _dataset_count(client, ds_id)
+        tick = (lambda c: on_count(c)) if on_count is not None else None
+        run, reason = _wait_for_run(
+            client, run_id, should_abort, on_tick=tick, count_fn=count_fn,
+            plateau_secs=plateau_secs, max_run_secs=max_run_secs)
+        if reason == "completed":
+            _check_run_dict(run, "Google Maps lookup")
+        else:
+            finalized_early = True
+            print(f"[maps]   wound down early ({reason}) — keeping collected data")
         dataset_id = run["defaultDatasetId"]
         items = list(client.dataset(dataset_id).iterate_items())
         print(f"[maps]   -> {len(items)} listings (dataset {dataset_id})")
         places.extend(items)
-    return places
+        if finalized_early:
+            break  # the actor is winding down; don't pay to launch more chunks
+    return places, finalized_early
 
 
 def fetch_site(url, timeout=10):
@@ -264,7 +303,8 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
                   min_reviews, country, chunk_size, limit, fetch,
                   maps_dataset_id=None, skip_pairs=None, on_searched=None,
                   on_progress=None, fetch_fn=fetch_site,
-                  should_abort=None, on_run_start=None):
+                  should_abort=None, on_run_start=None,
+                  plateau_secs=None, max_run_secs=None):
     """Core no-website pipeline, decoupled from CLI/CSV. Returns lead rows
     (web_presence.no_website_row shape) each with an added 'place_id'.
 
@@ -283,6 +323,7 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
 
     _check_abort()  # bail before touching Apify if an abort is already pending
 
+    finalized_early = False
     if maps_dataset_id:
         _emit("maps", f"Reusing dataset {maps_dataset_id}")
         raw_places = list(client.dataset(maps_dataset_id).iterate_items())
@@ -293,12 +334,16 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
             return []
         searches = [f"{category} {suburb} VIC" for category, suburb in pairs]
         _emit("maps", f"Sweeping {len(searches)} new searches")
-        raw_places = run_maps_lookup(
+        raw_places, finalized_early = run_maps_lookup(
             client, searches, per_search, country, chunk_size,
             should_abort=should_abort, on_run_start=on_run_start,
-            on_count=lambda n: _emit("maps", f"Scanning Google Maps — {n} listings", n))
+            on_count=lambda n: _emit("maps", f"Scanning Google Maps — {n} listings", n),
+            plateau_secs=plateau_secs, max_run_secs=max_run_secs)
         if on_searched:
             on_searched(pairs)
+    if finalized_early:
+        _emit("maps", f"Wound down early to save cost — classifying "
+              f"{len(raw_places)} listings collected so far", len(raw_places))
 
     _check_abort()
     places = web_presence.dedupe_by_place_id(raw_places)
@@ -346,6 +391,7 @@ def export_csv(conn, store, engine, output_path):
     rows = []
     for l in store.all_leads(conn, engine):
         name = l.get("business_name") or ""
+        tier = l.get("tier")
         rows.append({
             "business_name": name,
             "category": l.get("category") or "",
@@ -357,6 +403,9 @@ def export_csv(conn, store, engine, output_path):
             "website": l.get("website") or "",
             "suburb": l.get("suburb") or "",
             "address": l.get("address") or "",
+            "tier": tier,
+            "tier_label": web_presence.lead_tier_label(tier) if tier else "",
+            "heat": l.get("heat"),
             "google_maps_url": l.get("google_maps_url") or "",
             "google_search_url": web_presence.google_search_url(name),
         })

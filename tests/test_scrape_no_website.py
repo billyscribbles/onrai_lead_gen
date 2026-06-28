@@ -143,11 +143,12 @@ class _HappyClient:
 
 def test_run_maps_lookup_starts_polls_and_returns_items():
     captured = {}
-    places = run_maps_lookup(
+    places, finalized_early = run_maps_lookup(
         _HappyClient(), ["cafe Footscray VIC"], 5, "au", 200,
         on_run_start=lambda rid: captured.__setitem__("rid", rid))
     assert captured["rid"] == "R1"
     assert places == [{"placeId": "p1"}]
+    assert finalized_early is False
 
 
 def test_run_maps_lookup_reports_live_listing_count(monkeypatch):
@@ -184,10 +185,11 @@ def test_run_maps_lookup_reports_live_listing_count(monkeypatch):
                     return iter([{"placeId": "p1"}])
             return _DS()
 
-    places = run_maps_lookup(_Client(), ["cafe VIC"], 5, "au", 200,
-                             on_count=counts.append)
+    places, finalized_early = run_maps_lookup(_Client(), ["cafe VIC"], 5, "au", 200,
+                                              on_count=counts.append)
     assert counts == [7]            # one tick while RUNNING, before completion
     assert places == [{"placeId": "p1"}]
+    assert finalized_early is False
 
 
 def test_run_maps_lookup_aborts_apify_run_when_requested():
@@ -230,3 +232,82 @@ def test_collect_leads_aborts_immediately_without_touching_client():
             per_search=5, max_searches=1, min_reviews=5, country="au",
             chunk_size=200, limit=None, fetch=False, maps_dataset_id="DS-1",
             should_abort=lambda: True)
+
+
+# --- wind-down watchdog: plateau/timeout keep data; user-abort discards ------
+
+def _fake_clock(monkeypatch, step=5.0):
+    """Make scrape_no_website.time advance `step` seconds per monotonic() call
+    and never actually sleep, so watchdog timing is deterministic and fast."""
+    import scrape_no_website
+    state = {"t": 0.0}
+
+    def monotonic():
+        now = state["t"]
+        state["t"] += step
+        return now
+
+    monkeypatch.setattr(scrape_no_website.time, "monotonic", monotonic)
+    monkeypatch.setattr(scrape_no_website.time, "sleep", lambda *_: None)
+
+
+def _stuck_client(item_count, aborted):
+    """A client whose actor never finishes and whose dataset count never grows —
+    i.e. the documented Maps wind-down hang. Records aborts into `aborted`."""
+    class _RunClient:
+        def get(self):
+            return {"status": "RUNNING", "id": "R1", "defaultDatasetId": "DS1"}
+
+        def abort(self):
+            aborted.append("R1")
+
+    class _DS:
+        def get(self):
+            return {"itemCount": item_count}
+
+        def iterate_items(self):
+            return iter([{"placeId": f"p{i}"} for i in range(item_count)])
+
+    class _Client:
+        def actor(self, name):
+            return _FakeActor({"id": "R1", "defaultDatasetId": "DS1"})
+
+        def run(self, run_id):
+            return _RunClient()
+
+        def dataset(self, ds_id):
+            return _DS()
+
+    return _Client()
+
+
+def test_watchdog_finalizes_on_plateau_and_keeps_data(monkeypatch):
+    _fake_clock(monkeypatch, step=5.0)
+    aborted = []
+    places, finalized_early = run_maps_lookup(
+        _stuck_client(3, aborted), ["cafe VIC"], 5, "au", 200,
+        plateau_secs=10, max_run_secs=999)
+    assert finalized_early is True
+    assert aborted == ["R1"]                 # idle actor was stopped (saves $)
+    assert len(places) == 3                  # collected listings are kept
+
+
+def test_watchdog_finalizes_on_wall_clock_timeout(monkeypatch):
+    _fake_clock(monkeypatch, step=5.0)
+    aborted = []
+    places, finalized_early = run_maps_lookup(
+        _stuck_client(2, aborted), ["cafe VIC"], 5, "au", 200,
+        plateau_secs=999, max_run_secs=10)
+    assert finalized_early is True
+    assert aborted == ["R1"]
+    assert len(places) == 2
+
+
+def test_user_abort_still_discards_even_with_watchdog_armed(monkeypatch):
+    _fake_clock(monkeypatch, step=5.0)
+    aborted = []
+    with pytest.raises(RunAborted):
+        run_maps_lookup(
+            _stuck_client(5, aborted), ["cafe VIC"], 5, "au", 200,
+            should_abort=lambda: True, plateau_secs=10, max_run_secs=10)
+    assert aborted == ["R1"]

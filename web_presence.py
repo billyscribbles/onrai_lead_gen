@@ -14,6 +14,7 @@ Two tiers, both free of Apify calls:
 A business is a lead unless its site is ``healthy`` (see ``is_lead_status``).
 """
 
+import math
 from urllib.parse import quote_plus
 
 _AU_STATES = {"VIC", "NSW", "QLD", "SA", "WA", "TAS", "NT", "ACT"}
@@ -78,6 +79,9 @@ LEAD_COLUMNS = [
     "website",
     "suburb",
     "address",
+    "tier",
+    "tier_label",
+    "heat",
     "google_maps_url",
     "google_search_url",
 ]
@@ -183,6 +187,41 @@ def lead_tag(web_status):
     return _LEAD_TAGS.get(web_status, "")
 
 
+# --- ICP ranking (single source of truth, mirrored by web/src/lib/leads.ts) ---
+# Tier encodes the ideal-customer-profile priority from CLAUDE.md:
+#   1  social_only + phone  — best of the best (proven social spend + reachable)
+#   2  social_only          — strong signal, no site fetch needed
+#   3  none + phone         — clean gap, easy to reach
+#   4  none                 — clean gap, reach via socials/maps
+#   5  broken / not_mobile  — redesign buckets, lower confidence
+_TIER_LABELS = {1: "Top tier", 2: "Social only", 3: "No website",
+                4: "No website", 5: "Redesign"}
+_TIER_BASE = {1: 78, 2: 62, 3: 58, 4: 44, 5: 30}
+
+
+def lead_tier(web_status, has_phone):
+    """ICP priority tier (1 = hottest) for a classified lead. Pure, no I/O."""
+    if web_status == "social_only":
+        return 1 if has_phone else 2
+    if web_status == "none":
+        return 3 if has_phone else 4
+    return 5
+
+
+def lead_tier_label(tier):
+    """Short human label for a tier (matches the dashboard chips)."""
+    return _TIER_LABELS.get(tier, "Redesign")
+
+
+def lead_heat(tier, reviews_count, has_phone):
+    """0–100 confidence/heat for the signal meter. Reviews are log-scaled so a
+    3000-review business doesn't dwarf a 200-review one; a phone adds reach."""
+    base = _TIER_BASE.get(tier, 30)
+    traction = min(18.0, math.log10(max(1, reviews_count or 0)) * 5)
+    reach = 4 if has_phone else 0
+    return round(min(100.0, base + traction + reach))
+
+
 def google_search_url(name):
     """A one-click Google search link for a business (opens its profile panel)."""
     if not name:
@@ -193,17 +232,24 @@ def google_search_url(name):
 def no_website_row(place, web_status):
     """Map a raw Google Maps place + its web_status to an output CSV row."""
     name = place.get("title") or ""
+    phone = place.get("phone") or place.get("phoneUnformatted") or ""
+    has_phone = bool(phone.strip())
+    reviews = place.get("reviewsCount")
+    tier = lead_tier(web_status, has_phone)
     return {
         "business_name": name,
         "category": place.get("categoryName") or "",
         "web_status": web_status,
         "lead_tag": lead_tag(web_status),
         "rating": place.get("totalScore"),
-        "reviews_count": place.get("reviewsCount"),
-        "phone": place.get("phone") or place.get("phoneUnformatted") or "",
+        "reviews_count": reviews,
+        "phone": phone,
         "website": place.get("website") or "",
         "suburb": extract_suburb(place),
         "address": place.get("address") or "",
+        "tier": tier,
+        "tier_label": lead_tier_label(tier),
+        "heat": lead_heat(tier, reviews, has_phone),
         "google_maps_url": place.get("url") or "",
         "google_search_url": google_search_url(name),
     }

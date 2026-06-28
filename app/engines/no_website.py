@@ -7,6 +7,7 @@ from pathlib import Path
 import scrape_no_website as sw
 import web_presence
 from app import store
+from app.config import settings
 from app.engines.registry import get_engine
 from app.normalize import lead_template
 
@@ -79,12 +80,22 @@ def run(params: dict, on_progress=None, client=None, conn=None,
         else store.seen_pairs(conn, "no_website")
     swept = []
 
+    # Surface the seen-set saving money, so the user sees dedup working up front.
+    if on_progress and skip:
+        skipped_here = sum(1 for (cat, _sub) in skip if cat == category)
+        if skipped_here:
+            on_progress({"stage": "maps", "places_scraped": 0, "leads_found": 0,
+                         "message": f"Skipped {skipped_here} suburbs already swept "
+                                    f"for {category} (no Apify cost)"})
+
     rows = sw.collect_leads(
         client, categories=[category], suburbs=suburbs, per_search=per_search,
         max_searches=max_searches, min_reviews=min_reviews, country="au",
         chunk_size=200, limit=None, fetch=fetch, maps_dataset_id=maps_dataset_id,
         skip_pairs=skip, on_searched=swept.extend, on_progress=on_progress,
-        should_abort=should_abort, on_run_start=on_run_start)
+        should_abort=should_abort, on_run_start=on_run_start,
+        plateau_secs=settings.maps_plateau_secs,
+        max_run_secs=settings.maps_max_run_secs)
 
     if conn is not None and swept:
         store.record_searches(conn, "no_website", swept)

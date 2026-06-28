@@ -8,6 +8,9 @@ from web_presence import (
     no_website_row,
     google_search_url,
     lead_tag,
+    lead_tier,
+    lead_tier_label,
+    lead_heat,
     extract_suburb,
     dedupe_by_place_id,
     parse_suburb_lines,
@@ -236,3 +239,60 @@ def test_no_website_row_phone_blank_when_absent():
     row = no_website_row(place, "social_only")
     assert row["phone"] == ""
     assert row["website"] == "https://fb.com/x"
+
+
+# --- ICP ranking: tier + heat (single source of truth) ----------------------
+
+def test_lead_tier_orders_the_icp():
+    # social_only+phone is the best of the best; redesign buckets are last.
+    assert lead_tier("social_only", True) == 1
+    assert lead_tier("social_only", False) == 2
+    assert lead_tier("none", True) == 3
+    assert lead_tier("none", False) == 4
+    assert lead_tier("broken", True) == 5
+    assert lead_tier("not_mobile", False) == 5
+
+
+def test_lead_tier_social_only_with_phone_outranks_everything():
+    tiers = [
+        lead_tier("social_only", True),
+        lead_tier("social_only", False),
+        lead_tier("none", True),
+        lead_tier("none", False),
+        lead_tier("broken", False),
+    ]
+    assert tiers == sorted(tiers)            # strictly improving priority order
+    assert tiers[0] < tiers[-1]
+
+
+def test_lead_tier_label_matches_dashboard_chips():
+    assert lead_tier_label(1) == "Top tier"
+    assert lead_tier_label(2) == "Social only"
+    assert lead_tier_label(3) == "No website"
+    assert lead_tier_label(4) == "No website"
+    assert lead_tier_label(5) == "Redesign"
+
+
+def test_lead_heat_rewards_better_tier_and_traction():
+    # A top-tier lead should out-heat a redesign lead with the same reviews.
+    assert lead_heat(1, 100, True) > lead_heat(5, 100, True)
+    # More reviews => more heat within the same tier.
+    assert lead_heat(2, 1500, False) > lead_heat(2, 10, False)
+    # A phone adds reach.
+    assert lead_heat(3, 50, True) > lead_heat(3, 50, False)
+
+
+def test_lead_heat_is_bounded_and_handles_missing_reviews():
+    assert 0 <= lead_heat(1, None, True) <= 100
+    assert 0 <= lead_heat(5, 0, False) <= 100
+    assert lead_heat(1, 10_000_000, True) <= 100
+
+
+def test_no_website_row_carries_tier_and_heat():
+    place = {"title": "Lavish Barbers", "categoryName": "Barber",
+             "website": "https://instagram.com/lavish", "phone": "+61 3 9000 0000",
+             "reviewsCount": 1493, "totalScore": 4.8}
+    row = no_website_row(place, "social_only")
+    assert row["tier"] == 1                  # social_only + phone => top tier
+    assert row["tier_label"] == "Top tier"
+    assert 0 < row["heat"] <= 100

@@ -15,3 +15,6 @@ data/
 
 .DS_Store
 web/dist/
+
+# Superpowers SDD scratch (ledger, briefs, reports, diffs)
+.superpowers/

@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS leads (
     place_id TEXT,
     dedup_key TEXT,
     extra TEXT NOT NULL DEFAULT '{}',
+    user_status TEXT NOT NULL DEFAULT 'normal',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_leads_engine ON leads(engine);
@@ -83,6 +84,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     lead_cols = {r["name"] for r in conn.execute("PRAGMA table_info(leads)")}
     if "dedup_key" not in lead_cols:
         conn.execute("ALTER TABLE leads ADD COLUMN dedup_key TEXT")
+    if "user_status" not in lead_cols:
+        conn.execute(
+            "ALTER TABLE leads ADD COLUMN user_status TEXT NOT NULL "
+            "DEFAULT 'normal'")
     # Backfill any rows still missing a key, collapse pre-existing duplicates,
     # then enforce one row per (engine, dedup_key) going forward. Order matters:
     # the unique index can only be created once duplicates are gone.

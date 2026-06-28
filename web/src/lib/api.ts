@@ -55,6 +55,8 @@ export interface ApiLead {
   place_id: string | null
   extra: Record<string, string>
   user_status: string
+  /** When this lead was first saved (SQLite UTC "YYYY-MM-DD HH:MM:SS"). */
+  created_at: string
 }
 
 const ENGINE = 'no_website'
@@ -119,6 +121,11 @@ export function createRun(
 
 export function getRun(id: number): Promise<Run> {
   return fetch(`/api/runs/${id}`, { credentials: 'include' }).then(json<Run>)
+}
+
+/** Force-kill a run. Returns the run in its final (aborted) state. */
+export function abortRun(id: number): Promise<Run> {
+  return post(`/api/runs/${id}/abort`, {}).then(json<Run>)
 }
 
 /** Most-recent runs (newest first, max 50). Used to re-attach to an in-flight

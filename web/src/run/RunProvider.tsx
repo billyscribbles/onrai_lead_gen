@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { createRun, getRun, listRuns, type GenParams, type Run } from '../lib/api'
+import { abortRun, createRun, getRun, listRuns, type GenParams, type Run } from '../lib/api'
 
 const STORAGE_KEY = 'onrai.activeRunId'
 const POLL_MS = 2000
@@ -17,7 +17,9 @@ interface ActiveRun {
   runId: number | null
   run: Run | null
   error: string
+  aborting: boolean
   start: (params: GenParams, confirmedEstimate: number) => Promise<void>
+  abort: () => Promise<void>
   dismiss: () => void
 }
 
@@ -34,6 +36,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const [runId, setRunId] = useState<number | null>(null)
   const [run, setRun] = useState<Run | null>(null)
   const [error, setError] = useState('')
+  const [aborting, setAborting] = useState(false)
   const poll = useRef<ReturnType<typeof setInterval> | null>(null)
   const starting = useRef(false)
   const polledId = useRef<number | null>(null)
@@ -59,7 +62,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
           setRun(r)
           if (TERMINAL.has(r.status)) {
             stopPoll()
-            if (r.status !== 'done') setError(r.error || `Run ${r.status}`)
+            setAborting(false)
+            if (r.status === 'failed') setError(r.error || 'Run failed')
           }
         } catch (e) {
           if (polledId.current !== id) return
@@ -93,12 +97,27 @@ export function RunProvider({ children }: { children: ReactNode }) {
     [track, runId],
   )
 
+  const abort = useCallback(async () => {
+    if (runId == null) return
+    setAborting(true)
+    try {
+      const r = await abortRun(runId)
+      setRun(r)
+      if (TERMINAL.has(r.status)) stopPoll()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not stop the run')
+    } finally {
+      setAborting(false)
+    }
+  }, [runId, stopPoll])
+
   const dismiss = useCallback(() => {
     stopPoll()
     localStorage.removeItem(STORAGE_KEY)
     setRunId(null)
     setRun(null)
     setError('')
+    setAborting(false)
   }, [stopPoll])
 
   // On mount: resume a persisted run; otherwise adopt any in-flight run the
@@ -141,7 +160,7 @@ export function RunProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <Ctx.Provider value={{ runId, run, error, start, dismiss }}>
+    <Ctx.Provider value={{ runId, run, error, aborting, start, abort, dismiss }}>
       {children}
     </Ctx.Provider>
   )

@@ -182,14 +182,52 @@ def write_csv(rows, output_path):
     print(f"Wrote {len(rows)} leads -> {path}")
 
 
+def collect_leads(client, *, categories, suburbs, per_search, max_searches,
+                  min_reviews, country, chunk_size, limit, fetch,
+                  maps_dataset_id=None, on_progress=None, fetch_fn=fetch_site):
+    """Core no-website pipeline, decoupled from CLI/CSV. Returns lead rows
+    (web_presence.no_website_row shape) each with an added 'place_id'."""
+    def _emit(stage, message, places=0):
+        if on_progress:
+            on_progress({"stage": stage, "message": message,
+                         "places_scraped": places})
+
+    if maps_dataset_id:
+        _emit("maps", f"Reusing dataset {maps_dataset_id}")
+        raw_places = list(client.dataset(maps_dataset_id).iterate_items())
+    else:
+        searches = build_search_strings(categories, suburbs, max_searches)
+        _emit("maps", f"Sweeping {len(searches)} searches")
+        raw_places = run_maps_lookup(client, searches, per_search, country, chunk_size)
+
+    places = web_presence.dedupe_by_place_id(raw_places)
+    places.sort(key=lambda p: p.get("reviewsCount") or 0, reverse=True)
+    _emit("classify", f"{len(places)} unique listings", len(places))
+
+    rows = []
+    fetch_budget = limit if limit is not None else len(places)
+    for place in places:
+        if not web_presence.is_real_listing(place, min_reviews):
+            continue
+        status, consumed = resolve_status(place, fetch, fetch_budget, fetch_fn=fetch_fn)
+        if consumed:
+            fetch_budget -= 1
+        if status is None or not web_presence.is_lead_status(status):
+            continue
+        row = web_presence.no_website_row(place, status)
+        row["place_id"] = place.get("placeId")
+        rows.append(row)
+    rows.sort(key=lambda r: r["reviews_count"] or 0, reverse=True)
+    _emit("done", f"{len(rows)} leads", len(places))
+    return rows
+
+
 def main(argv=None):
     args = parse_args(argv)
     client = ApifyClient(get_token())
 
     if args.maps_dataset_id:
-        print(f"[maps] Reusing dataset {args.maps_dataset_id} (no new run)...")
-        raw_places = list(client.dataset(args.maps_dataset_id).iterate_items())
-        print(f"[maps]   -> {len(raw_places)} listings loaded.")
+        categories, suburbs = [], []
     else:
         categories = web_presence.parse_suburb_lines(
             Path(args.categories_file).read_text(encoding="utf-8"))
@@ -197,36 +235,18 @@ def main(argv=None):
             Path(args.suburbs_file).read_text(encoding="utf-8"))
         if not categories or not suburbs:
             sys.exit("ERROR: need at least one category and one suburb.")
-        searches = build_search_strings(categories, suburbs, args.max_searches)
-        print(f"Sweeping {len(searches)} category x suburb searches "
-              f"({len(categories)} categories x {len(suburbs)} suburbs"
-              f"{', capped' if args.max_searches else ''}).")
-        raw_places = run_maps_lookup(client, searches, args.per_search,
-                                     args.country, args.chunk_size)
 
-    places = web_presence.dedupe_by_place_id(raw_places)
-    print(f"{len(places)} unique listings after dedupe.")
+    rows = collect_leads(
+        client, categories=categories, suburbs=suburbs, per_search=args.per_search,
+        max_searches=args.max_searches, min_reviews=args.min_reviews,
+        country=args.country, chunk_size=args.chunk_size, limit=args.limit,
+        fetch=args.fetch, maps_dataset_id=args.maps_dataset_id)
 
-    # Most-established first, so the fetch budget is spent on the best prospects.
-    places.sort(key=lambda p: p.get("reviewsCount") or 0, reverse=True)
-
-    rows = []
-    counts = {}
-    fetch_budget = args.limit if args.limit is not None else len(places)
-    for place in places:
-        if not web_presence.is_real_listing(place, args.min_reviews):
-            continue
-        status, consumed = resolve_status(place, args.fetch, fetch_budget)
-        if consumed:
-            fetch_budget -= 1
-        if status is None or not web_presence.is_lead_status(status):
-            continue
-        rows.append(web_presence.no_website_row(place, status))
-        counts[status] = counts.get(status, 0) + 1
-
-    rows.sort(key=lambda r: r["reviews_count"] or 0, reverse=True)
     write_csv(rows, args.output)
 
+    counts = {}
+    for r in rows:
+        counts[r["web_status"]] = counts.get(r["web_status"], 0) + 1
     breakdown = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
     print(f"Done. {len(rows)} leads (by status -> {breakdown}).")
     return 0

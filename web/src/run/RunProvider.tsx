@@ -35,12 +35,15 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const [run, setRun] = useState<Run | null>(null)
   const [error, setError] = useState('')
   const poll = useRef<ReturnType<typeof setInterval> | null>(null)
+  const starting = useRef(false)
+  const polledId = useRef<number | null>(null)
 
   const stopPoll = useCallback(() => {
     if (poll.current) {
       clearInterval(poll.current)
       poll.current = null
     }
+    polledId.current = null
   }, [])
 
   // Begin (or restart) polling a given run id. Fires once immediately so the
@@ -48,15 +51,18 @@ export function RunProvider({ children }: { children: ReactNode }) {
   const track = useCallback(
     (id: number) => {
       stopPoll()
+      polledId.current = id
       const tick = async () => {
         try {
           const r = await getRun(id)
+          if (polledId.current !== id) return
           setRun(r)
           if (TERMINAL.has(r.status)) {
             stopPoll()
             if (r.status !== 'done') setError(r.error || `Run ${r.status}`)
           }
         } catch (e) {
+          if (polledId.current !== id) return
           stopPoll()
           setError(e instanceof Error ? e.message : 'Lost the run')
         }
@@ -69,6 +75,8 @@ export function RunProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(
     async (params: GenParams, confirmedEstimate: number) => {
+      if (starting.current || runId != null) return
+      starting.current = true
       setError('')
       setRun(null)
       try {
@@ -78,9 +86,11 @@ export function RunProvider({ children }: { children: ReactNode }) {
         track(run_id)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not start the run')
+      } finally {
+        starting.current = false
       }
     },
-    [track],
+    [track, runId],
   )
 
   const dismiss = useCallback(() => {

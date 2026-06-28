@@ -37,7 +37,7 @@ export function RunWidget({ onView }: { onView: () => void }) {
           <div className="runwidget__meta">
             <span className="mono">{prog.pct}%</span>
             {run?.places_scraped ? (
-              <span className="runwidget__sub mono">{run.places_scraped} seen</span>
+              <span className="mono">{run.places_scraped} seen</span>
             ) : null}
           </div>
           <div className="gen__track">

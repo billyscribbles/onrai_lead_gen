@@ -585,6 +585,7 @@ button {
   border-left: 3px solid transparent;
   background: var(--surface);
   text-align: left;
+  cursor: pointer;
   transition: background 0.14s, border-color 0.14s;
 }
 
@@ -593,7 +594,7 @@ button {
 }
 
 .row:hover {
-  background: #fcfcfd;
+  background: #eef0f4;
 }
 
 .row--t1 {

@@ -28,6 +28,7 @@ export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
               <Close />
             </button>
 
+            <div className="drawer__scroll">
             <span className={`tag tag--t${lead.tier}`}>{lead.tierLabel}</span>
             <h2 className="drawer__name">{lead.name}</h2>
             <p className="drawer__meta">
@@ -111,6 +112,7 @@ export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
                   <Search /> Google
                 </a>
               )}
+            </div>
             </div>
 
             <div className="drawer__toggles">

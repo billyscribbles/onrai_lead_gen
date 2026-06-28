@@ -136,7 +136,6 @@ export function Dashboard({
 
         {view === 'generate' && (
           <GenerateSection
-            onReload={reload}
             onViewLeads={() => setView('leads')}
           />
         )}

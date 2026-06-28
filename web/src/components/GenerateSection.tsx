@@ -1,17 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import {
-  createRun,
-  estimateRun,
-  getRun,
-  type Estimate,
-  type GenParams,
-  type Run,
-} from '../lib/api'
-import { progressFor } from '../run/progress'
+import { useEffect, useState } from 'react'
+import { estimateRun, type Estimate, type GenParams } from '../lib/api'
+import { useActiveRun } from '../run/RunProvider'
+import { progressFor, runPhase } from '../run/progress'
 
 interface Props {
-  /** Refresh the leads sheet after a successful run. */
-  onReload: () => void
   /** Jump back to the leads view. */
   onViewLeads: () => void
 }
@@ -44,9 +36,7 @@ const ALL_SUBURBS = SUBURB_GROUPS.flatMap((g) => g.items)
 
 const CUSTOM = '__custom__'
 
-type Phase = 'config' | 'running' | 'done' | 'error'
-
-export function GenerateSection({ onReload, onViewLeads }: Props) {
+export function GenerateSection({ onViewLeads }: Props) {
   const [industry, setIndustry] = useState('cafe')
   const [custom, setCustom] = useState('')
   const [suburbs, setSuburbs] = useState<string[]>(ALL_SUBURBS)
@@ -60,10 +50,8 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [estimating, setEstimating] = useState(false)
 
-  const [phase, setPhase] = useState<Phase>('config')
-  const [run, setRun] = useState<Run | null>(null)
-  const [error, setError] = useState('')
-  const poll = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { runId, run, error, start, dismiss } = useActiveRun()
+  const phase = runPhase(runId, run, error)
 
   const category = (industry === CUSTOM ? custom : industry).trim()
 
@@ -102,44 +90,13 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, target, phase, suburbs.length])
 
-  useEffect(() => () => { if (poll.current) clearInterval(poll.current) }, [])
-
   async function onGenerate() {
     if (!category || !estimate) return
-    setError('')
-    setRun(null)
-    setPhase('running')
-    try {
-      const { run_id } = await createRun(buildParams(), estimate.cost_expected)
-      poll.current = setInterval(async () => {
-        try {
-          const r = await getRun(run_id)
-          setRun(r)
-          if (r.status === 'done') {
-            if (poll.current) clearInterval(poll.current)
-            setPhase('done')
-            onReload()
-          } else if (r.status === 'failed' || r.status === 'aborted') {
-            if (poll.current) clearInterval(poll.current)
-            setError(r.error || `Run ${r.status}`)
-            setPhase('error')
-          }
-        } catch (e) {
-          if (poll.current) clearInterval(poll.current)
-          setError(e instanceof Error ? e.message : 'Lost the run')
-          setPhase('error')
-        }
-      }, 2000)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start the run')
-      setPhase('error')
-    }
+    await start(buildParams(), estimate.cost_expected)
   }
 
   function reset() {
-    setPhase('config')
-    setRun(null)
-    setError('')
+    dismiss()
   }
 
   const prog = progressFor(run)

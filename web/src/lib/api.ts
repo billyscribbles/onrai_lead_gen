@@ -107,6 +107,12 @@ export function getRun(id: number): Promise<Run> {
   return fetch(`/api/runs/${id}`, { credentials: 'include' }).then(json<Run>)
 }
 
+/** Most-recent runs (newest first, max 50). Used to re-attach to an in-flight
+ *  run after a refresh when no run id is stored locally. */
+export function listRuns(): Promise<Run[]> {
+  return fetch('/api/runs', { credentials: 'include' }).then(json<Run[]>)
+}
+
 /** Whether a login is required and whether this session is already authed. */
 export function getAuthStatus(): Promise<AuthStatus> {
   return fetch('/api/auth/me', { credentials: 'include' }).then(json<AuthStatus>)

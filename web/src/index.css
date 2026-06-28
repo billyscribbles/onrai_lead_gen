@@ -1,38 +1,42 @@
 /* =========================================================================
-   No-Site Radar — operator dial-sheet for Melbourne no-website leads.
-   Design tokens: ink / cool paper / signal vermilion / structural teal.
-   Type: Space Grotesk (display) · Inter (UI) · JetBrains Mono (data).
+   Onrai Studio — Lead Radar. Operator dial-sheet for Melbourne no-website leads.
+   Brand tokens carried over from the Onrai Studio site:
+   ink / warm paper / Onrai teal accent / warm terracotta secondary.
+   Type: Fraunces (display serif) · Plus Jakarta Sans (UI) · JetBrains Mono (data).
    ========================================================================= */
 
 :root {
-  --ink: #14161a;
-  --ink-soft: #2a2d35;
-  --paper: #f5f6f8;
+  --ink: #18181b;
+  --ink-soft: #3f3f46;
+  --paper: #faf9f7;
+  --paper-alt: #f3f1ee;
   --surface: #ffffff;
-  --line: #e7e8ec;
-  --line-soft: #eff0f3;
-  --muted: #6b7280;
-  --muted-2: #9aa1ad;
+  --line: rgba(24, 24, 27, 0.09);
+  --line-soft: rgba(24, 24, 27, 0.06);
+  --muted: #71717a;
+  --muted-2: #9a9aa3;
 
-  --signal: #ff5a1f;
-  --signal-ink: #d8430f;
-  --signal-soft: rgba(255, 90, 31, 0.12);
-  --teal: #0e6056;
-  --teal-soft: rgba(14, 96, 86, 0.1);
+  /* Primary brand accent — Onrai teal (drives "hot"/tier-1, brand, primary CTAs) */
+  --signal: #0c8c81;
+  --signal-ink: #0a7268;
+  --signal-soft: rgba(12, 140, 129, 0.12);
+  /* Secondary accent — warm terracotta, harmonised with the warm paper */
+  --teal: #bf6a45;
+  --teal-soft: rgba(191, 106, 69, 0.12);
   --amber: #b4690e;
   --amber-soft: rgba(180, 105, 14, 0.1);
-  --slate: #4b5563;
-  --slate-soft: rgba(75, 85, 99, 0.08);
+  --slate: #52525b;
+  --slate-soft: rgba(82, 82, 91, 0.08);
 
-  --display: 'Space Grotesk', system-ui, sans-serif;
-  --sans: 'Inter', system-ui, sans-serif;
+  --display: 'Fraunces', Georgia, serif;
+  --sans: 'Plus Jakarta Sans', system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, monospace;
 
   --radius: 14px;
-  --radius-sm: 9px;
-  --shadow-sm: 0 1px 2px rgba(20, 22, 26, 0.04);
-  --shadow: 0 6px 24px -10px rgba(20, 22, 26, 0.18);
-  --shadow-lg: 0 24px 60px -24px rgba(20, 22, 26, 0.4);
+  --radius-sm: 8px;
+  --shadow-sm: 0 1px 3px rgba(24, 24, 27, 0.06), 0 1px 2px rgba(24, 24, 27, 0.04);
+  --shadow: 0 4px 16px rgba(24, 24, 27, 0.08), 0 2px 6px rgba(24, 24, 27, 0.05);
+  --shadow-lg: 0 12px 40px rgba(24, 24, 27, 0.1), 0 4px 12px rgba(24, 24, 27, 0.06);
 
   --rail-w: 268px;
   --sheet-cols: 2.4rem minmax(0, 1fr) 6.6rem 8rem 9.2rem 6.6rem 7.4rem;
@@ -138,9 +142,9 @@ button {
 
 .brand__text strong {
   font-family: var(--display);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.02em;
   color: #fff;
 }
 
@@ -575,22 +579,21 @@ button {
   gap: 8px;
 }
 
-.row__heat-bar {
+.row__heat-track {
   position: relative;
-  height: 6px;
   flex: 1;
   min-width: 24px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--teal), var(--signal));
-}
-
-.row__heat::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 30px;
   height: 6px;
   border-radius: 999px;
+  background: linear-gradient(90deg, var(--teal), var(--signal));
+  overflow: hidden;
+}
+
+.row__heat-mask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
   background: var(--line);
 }
 
@@ -955,4 +958,130 @@ button {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* ============================ Generate modal ========================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 22, 26, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.modal__card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 22px;
+}
+
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.modal__eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--signal-ink);
+}
+
+.modal__title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.modal__x {
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--muted-2);
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.modal__x:hover { color: var(--ink); }
+
+.modal__field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.modal__field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.modal__field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.modal__field input:focus {
+  outline: none;
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-soft);
+}
+
+.modal__field input:disabled { background: var(--line-soft); color: var(--muted); }
+
+.modal__note {
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+.modal__note--live { background: var(--signal-soft); border-color: transparent; color: var(--signal-ink); }
+.modal__note--ok { background: var(--teal-soft); border-color: transparent; color: var(--teal); }
+
+.modal__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+
+.modal__error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--signal-ink);
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }

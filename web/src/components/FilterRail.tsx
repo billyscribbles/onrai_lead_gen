@@ -40,8 +40,8 @@ export function FilterRail({ filters, categories, counts, onChange }: Props) {
           <Signal />
         </span>
         <span className="brand__text">
-          <strong>NO-SITE RADAR</strong>
-          <small>Melbourne lead desk</small>
+          <strong>ONRAI STUDIO</strong>
+          <small>Lead Radar · Melbourne</small>
         </span>
       </div>
 

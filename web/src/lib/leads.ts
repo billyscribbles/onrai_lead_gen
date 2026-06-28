@@ -1,4 +1,4 @@
-import { parseCsv } from './csv'
+import { fetchLeads, type ApiLead } from './api'
 import type { Lead, RawLead, SocialPlatform } from '../types'
 
 /**
@@ -75,12 +75,28 @@ function toLead(raw: Record<string, string>, index: number): Lead {
   }
 }
 
-/** Fetch + parse + classify, sorted hottest-first. */
+/** Map a backend lead row to the flat CSV-style record `toLead` consumes. */
+function apiLeadToRaw(item: ApiLead): Record<string, string> {
+  return {
+    business_name: item.business_name,
+    category: item.category,
+    web_status: item.web_status,
+    lead_tag: item.extra?.lead_tag ?? '',
+    rating: item.rating != null ? String(item.rating) : '',
+    reviews_count: item.reviews_count != null ? String(item.reviews_count) : '0',
+    phone: item.phone ?? '',
+    website: item.website ?? '',
+    suburb: item.suburb ?? '',
+    address: item.address ?? '',
+    google_maps_url: item.google_maps_url ?? '',
+    google_search_url: item.extra?.google_search_url ?? '',
+  }
+}
+
+/** Fetch from the backend API + classify, sorted hottest-first. */
 export async function loadLeads(): Promise<Lead[]> {
-  const res = await fetch(`${import.meta.env.BASE_URL}leads.csv`)
-  if (!res.ok) throw new Error(`Could not load leads.csv (${res.status})`)
-  const text = await res.text()
-  const leads = parseCsv(text).map(toLead)
+  const { items } = await fetchLeads()
+  const leads = items.map((item, i) => toLead(apiLeadToRaw(item), i))
   return sortLeads(leads)
 }
 

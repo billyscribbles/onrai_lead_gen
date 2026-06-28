@@ -61,7 +61,12 @@ export function LeadRow({ lead, rank, onSelect }: Props) {
       </div>
 
       <div className="row__heat" title={`Heat ${lead.heat}/100`}>
-        <span className="row__heat-bar" style={{ width: `${lead.heat}%` }} />
+        <span className="row__heat-track">
+          <span
+            className="row__heat-mask"
+            style={{ width: `${100 - lead.heat}%` }}
+          />
+        </span>
         <span className="row__heat-num">{lead.heat}</span>
       </div>
 

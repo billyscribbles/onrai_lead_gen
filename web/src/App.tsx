@@ -10,6 +10,7 @@ import {
 import { StatStrip } from './components/StatStrip'
 import { LeadRow } from './components/LeadRow'
 import { LeadDrawer } from './components/LeadDrawer'
+import { GenerateModal } from './components/GenerateModal'
 
 const DEFAULT_FILTERS: Filters = {
   query: '',
@@ -35,9 +36,10 @@ function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
 }
 
 export default function App() {
-  const { leads, loading, error } = useLeads()
+  const { leads, loading, error, reload } = useLeads()
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
+  const [generating, setGenerating] = useState(false)
 
   const categories = useMemo(
     () => [...new Set(leads.map((l) => l.category).filter(Boolean))].sort(),
@@ -84,7 +86,7 @@ export default function App() {
       <main className="desk">
         <header className="desk__head">
           <div>
-            <p className="desk__eyebrow">Melbourne · no-website prospects</p>
+            <p className="desk__eyebrow">Onrai Studio · no-website prospects</p>
             <h1 className="desk__title">
               {loading
                 ? 'Loading the dial sheet…'
@@ -93,6 +95,13 @@ export default function App() {
                   : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
             </h1>
           </div>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={() => setGenerating(true)}
+          >
+            + Generate leads
+          </button>
         </header>
 
         {!loading && !error && <StatStrip leads={leads} />}
@@ -146,6 +155,13 @@ export default function App() {
       </main>
 
       <LeadDrawer lead={active} onClose={() => setActive(null)} />
+
+      {generating && (
+        <GenerateModal
+          onClose={() => setGenerating(false)}
+          onDone={reload}
+        />
+      )}
     </div>
   )
 }

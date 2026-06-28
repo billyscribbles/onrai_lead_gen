@@ -141,7 +141,9 @@ export function Dashboard({
           />
         )}
 
-        {view === 'leads' && !loading && !error && <StatStrip leads={leads} />}
+        {view === 'leads' && !loading && !error && (
+          <StatStrip leads={leads} filters={filters} onChange={update} />
+        )}
 
         {view === 'leads' && error && (
           <div className="panel panel--error">

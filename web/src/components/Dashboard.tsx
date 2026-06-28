@@ -56,7 +56,7 @@ export function Dashboard({
   canLogout: boolean
   onSignedOut: () => void
 }) {
-  const { leads, loading, error, reload } = useLeads()
+  const { leads, loading, error, reload, setLeadStatus } = useLeads()
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
   const [view, setView] = useState<'leads' | 'generate'>('leads')
@@ -211,6 +211,7 @@ export function Dashboard({
                   lead={lead}
                   rank={i + 1}
                   onSelect={setActive}
+                  onSetStatus={setLeadStatus}
                 />
               ))
             )}
@@ -218,7 +219,11 @@ export function Dashboard({
         )}
       </main>
 
-      <LeadDrawer lead={active} onClose={() => setActive(null)} />
+      <LeadDrawer
+        lead={active ? leads.find((l) => l.dbId === active.dbId) ?? active : null}
+        onClose={() => setActive(null)}
+        onSetStatus={setLeadStatus}
+      />
     </div>
   )
 }

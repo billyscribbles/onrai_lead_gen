@@ -1,14 +1,15 @@
-import type { Lead } from '../types'
+import type { Lead, UserStatus } from '../types'
 import { compact, platformLabel, telHref } from '../lib/format'
-import { MapPin, Phone, Search, SocialIcon, Star } from './Icons'
+import { Archive, MapPin, Phone, Search, SocialIcon, Star } from './Icons'
 
 interface Props {
   lead: Lead
   rank: number
   onSelect: (lead: Lead) => void
+  onSetStatus: (dbId: number, status: UserStatus) => void
 }
 
-export function LeadRow({ lead, rank, onSelect }: Props) {
+export function LeadRow({ lead, rank, onSelect, onSetStatus }: Props) {
   return (
     <article
       className={`row row--t${lead.tier}`}
@@ -71,6 +72,36 @@ export function LeadRow({ lead, rank, onSelect }: Props) {
       </div>
 
       <div className="row__actions" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className={`iconbtn ${lead.userStatus === 'favourite' ? 'is-fav' : ''}`}
+          title={lead.userStatus === 'favourite' ? 'Unfavourite' : 'Favourite'}
+          aria-pressed={lead.userStatus === 'favourite'}
+          aria-label="Favourite lead"
+          onClick={() =>
+            onSetStatus(
+              lead.dbId,
+              lead.userStatus === 'favourite' ? 'normal' : 'favourite',
+            )
+          }
+        >
+          <Star />
+        </button>
+        <button
+          type="button"
+          className={`iconbtn ${lead.userStatus === 'archived' ? 'is-arch' : ''}`}
+          title={lead.userStatus === 'archived' ? 'Unarchive' : 'Archive'}
+          aria-pressed={lead.userStatus === 'archived'}
+          aria-label="Archive lead"
+          onClick={() =>
+            onSetStatus(
+              lead.dbId,
+              lead.userStatus === 'archived' ? 'normal' : 'archived',
+            )
+          }
+        >
+          <Archive />
+        </button>
         {lead.hasPhone && (
           <a className="iconbtn" href={telHref(lead.phone)} title="Call" aria-label={`Call ${lead.name}`}>
             <Phone />

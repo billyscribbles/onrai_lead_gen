@@ -1,0 +1,13 @@
+{
+  "name": "melbourne-lead-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Melbourne real estate lead scraper — two-stage Apify pipeline (see README.md)",
+  "scripts": {
+    "setup": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "scrape": ".venv/bin/python scrape_leads.py",
+    "dev": ".venv/bin/python scrape_leads.py --max-results 20 --no-enrich",
+    "test": ".venv/bin/pytest -q"
+  },
+  "packageManager": "yarn@4.12.0+sha512.f45ab632439a67f8bc759bf32ead036a1f413287b9042726b7cc4818b7b49e14e9423ba49b18f9e06ea4941c1ad062385b1d8760a8d5091a1a31e5f6219afca8"
+}

@@ -1,0 +1,15 @@
+.env
+.venv/
+output/
+__pycache__/
+*.pyc
+.pytest_cache/
+.pnp.*
+.yarn/
+node_modules/
+
+# ABN bulk extract (large, ~1GB+ — download locally, never commit)
+data/
+
+.DS_Store
+web/dist/

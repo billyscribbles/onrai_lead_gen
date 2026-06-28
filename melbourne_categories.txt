@@ -1,0 +1,36 @@
+# Business categories to sweep for the no-website lead finder (one per line; # = comment).
+# Chosen because independent local operators in these trades often have a Google
+# Business Profile but no real website (Mr Baxter, a cafe, is the reference lead).
+# Edit freely: add/remove categories, then re-run with --categories-file.
+
+# Hospitality
+cafe
+restaurant
+takeaway food
+
+# Personal care
+hair salon
+barber
+nail salon
+beauty salon
+massage
+
+# Trades / home services
+plumber
+electrician
+builder
+landscaper
+cleaning service
+
+# Auto
+mechanic
+car detailing
+
+# Health / fitness
+gym
+physiotherapist
+dentist
+
+# Retail / other
+florist
+pet grooming

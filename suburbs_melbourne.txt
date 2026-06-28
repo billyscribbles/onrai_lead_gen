@@ -1,0 +1,47 @@
+# Melbourne metro suburbs for the lead sweep (one per line; # = comment).
+# Chosen to spread coverage across the whole metro rather than one corner.
+# Edit freely: add/remove suburbs, then re-run with --suburbs-file.
+
+# Inner / CBD
+Melbourne CBD
+Carlton
+Fitzroy
+Richmond
+South Yarra
+St Kilda
+Footscray
+
+# Inner east
+Hawthorn
+Camberwell
+Box Hill
+
+# Outer east / SE
+Doncaster
+Ringwood
+Glen Waverley
+Clayton
+Dandenong
+Springvale
+Berwick
+Pakenham
+Frankston
+
+# South
+Brighton
+Cheltenham
+
+# North
+Brunswick
+Coburg
+Preston
+Reservoir
+Epping
+Craigieburn
+
+# West / NW
+Sunshine
+Werribee
+Point Cook
+Melton
+Essendon

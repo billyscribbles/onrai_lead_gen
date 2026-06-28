@@ -1654,3 +1654,71 @@ button {
   width: 15px;
   height: 15px;
 }
+
+/* =========================================================================
+   Floating background-run widget
+   ========================================================================= */
+.runwidget {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.runwidget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink-soft);
+}
+
+.runwidget__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runwidget__x {
+  flex: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted-2);
+  padding: 0 2px;
+}
+
+.runwidget__x:hover {
+  color: var(--ink);
+}
+
+.runwidget__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.runwidget__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn--sm {
+  padding: 5px 12px;
+  font-size: 12.5px;
+}

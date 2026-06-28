@@ -50,12 +50,12 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
   const [industry, setIndustry] = useState('cafe')
   const [custom, setCustom] = useState('')
   const [suburbs, setSuburbs] = useState<string[]>(ALL_SUBURBS)
-  const [target, setTarget] = useState(25)
+  const [target, setTarget] = useState<number | ''>(25)
   const [noWebsite, setNoWebsite] = useState(true)
   const [socialOnly, setSocialOnly] = useState(false)
   const [phoneRequired, setPhoneRequired] = useState(true)
   const [established, setEstablished] = useState(true)
-  const [minReviews, setMinReviews] = useState(5)
+  const [minReviews, setMinReviews] = useState<number | ''>(5)
 
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [estimating, setEstimating] = useState(false)
@@ -76,11 +76,11 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
     return {
       category,
       suburbs,
-      target,
+      target: target === '' ? 1 : target,
       no_website: noWebsite,
       social_only: socialOnly,
       phone_required: phoneRequired,
-      min_reviews: established ? minReviews : 0,
+      min_reviews: established ? (minReviews === '' ? 0 : minReviews) : 0,
     }
   }
 
@@ -237,7 +237,10 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
               min={1}
               max={500}
               value={target}
-              onChange={(e) => setTarget(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) =>
+                setTarget(e.target.value === '' ? '' : Math.min(500, Number(e.target.value)))}
+              onBlur={() =>
+                setTarget((t) => (t === '' || t < 1 ? 1 : t))}
               disabled={busy}
             />
             <small className="gen__hint">
@@ -316,7 +319,10 @@ export function GenerateSection({ onReload, onViewLeads }: Props) {
                   type="number"
                   min={0}
                   value={minReviews}
-                  onChange={(e) => setMinReviews(Math.max(0, Number(e.target.value) || 0))}
+                  onChange={(e) =>
+                    setMinReviews(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+                  onBlur={() =>
+                    setMinReviews((m) => (m === '' ? 0 : m))}
                   disabled={busy || !established}
                   aria-label="Minimum reviews"
                 />

@@ -68,6 +68,21 @@ healthy sites). No ASIC list, no phone gate. Pure logic in the unit-tested
 `urllib` fetch — JS/bot-blocking sites can be false-flagged; eyeball before
 pitching). http-only URLs are fetched and judged, not auto-flagged.
 
+## Dashboard + backend (`app/`, `web/`)
+On top of the CLI there's a **No-Site Radar** web app: a FastAPI backend (`app/`)
+that wraps the scraper as a pluggable "engine" (cost estimate → confirm → run →
+SQLite), with password-gated session auth, and a React/Vite dashboard (`web/`) it
+serves. The backend ingests `output/melbourne_no_website_leads.csv` into SQLite on
+first boot. The same good-lead gates live here too (`app/engines/no_website.py`):
+`social_only` / `none` are the reliable buckets, fetch defaults **off**.
+
+Deployed on **Railway** (project `onrai_lead_gen`) via a multi-stage `Dockerfile`
+(Node builds the SPA → Python serves API + SPA) + `railway.json`. Gotchas that bit
+us: Railway does **not** shell-expand a `$PORT` in `railway.json`'s `startCommand`
+(let the Dockerfile `CMD` bind it); SQLite needs a mounted volume + `DB_PATH` or it
+resets each deploy; set `APP_PASSWORD` or the dashboard is public; `APIFY_TOKEN`
+must be set for live runs. See `README.md` for the full deploy steps.
+
 ## How to work in this repo
 The repo is now focused solely on the no-website goal. Earlier pipelines (a
 real-estate low-rating scraper and an ASIC/ABN brand-new-business pipeline) have

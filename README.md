@@ -96,7 +96,49 @@ collected data for free with `--maps-dataset-id <ID>`.
   lead tags, search URLs, suburb parsing, dedupe). No network.
 - `scrape_no_website.py` — Apify/HTTP/CSV orchestration + CLI.
 - `melbourne_categories.txt`, `suburbs_melbourne.txt` — editable sweep inputs.
+- `app/` — FastAPI backend wrapping the scraper as an "engine": runs (with cost
+  estimate + confirm), SQLite persistence, password-gated session auth, and it
+  serves the built dashboard. See [Dashboard](#dashboard-web-app).
+- `web/` — React + Vite dashboard SPA. See [`web/README.md`](web/README.md).
 
 ```bash
 pytest -q          # unit tests for web_presence.py and scrape_no_website.py
 ```
+
+## Dashboard (web app)
+
+A browser dashboard (**No-Site Radar**) sits on top of the same scraper: browse,
+filter, sort, and export leads, and launch new scrape runs from a button (with a
+cost estimate you confirm before any Apify spend). It's a FastAPI backend (`app/`)
+serving a React SPA (`web/`); the backend ingests `output/melbourne_no_website_leads.csv`
+into SQLite on first boot so the dashboard isn't empty.
+
+Run both halves together from the repo root:
+
+```bash
+yarn setup        # one-time: venv + pip install + npm install (web/)
+yarn dev          # uvicorn (:8000) + vite (:5173) together
+```
+
+Environment variables (see `.env.example`):
+
+| Var | Purpose |
+|-----|---------|
+| `APIFY_TOKEN` | Required for live scrape runs (the dashboard loads seed leads without it). |
+| `APP_PASSWORD` | Shared login password. **If unset, the dashboard is OPEN to anyone with the URL.** |
+| `SESSION_SECRET` | Signs the session cookie. Use a long random value in production. |
+| `DB_PATH` | SQLite location (default `output/leads.db`); point at a mounted volume in production. |
+
+## Deploy (Railway)
+
+The repo ships a multi-stage `Dockerfile` (Node builds `web/dist` → Python serves
+the API + SPA) and a `railway.json` (Dockerfile builder, `/api/health` healthcheck).
+
+1. Create a project and a service, then deploy (e.g. `railway up`, or via the
+   dashboard / MCP). Railway builds the `Dockerfile` and binds `$PORT` automatically
+   (the container `CMD` expands it — do **not** add a `startCommand` with a literal
+   `$PORT` to `railway.json`, Railway won't shell-expand it).
+2. Set service variables: `APIFY_TOKEN`, `APP_PASSWORD`, `SESSION_SECRET`.
+3. Attach a **volume** (e.g. mounted at `/data`) and set `DB_PATH=/data/leads.db`
+   so scraped leads survive redeploys (SQLite on the container filesystem is
+   ephemeral and resets on every deploy).

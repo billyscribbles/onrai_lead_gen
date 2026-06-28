@@ -1,0 +1,17 @@
+# Keep the build context small and deterministic. Everything the image needs
+# is COPYed explicitly in the Dockerfile; exclude local/dev cruft.
+.git/
+.venv/
+**/node_modules/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.yarn/
+.pnp.*
+web/dist/
+output/leads.db
+output/*.db
+.env
+.DS_Store
+docs/
+tests/

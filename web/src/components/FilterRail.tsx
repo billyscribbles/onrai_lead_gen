@@ -1,5 +1,6 @@
-import { Search, Signal } from './Icons'
+import { Plus, Rows, Search, Signal } from './Icons'
 
+export type View = 'leads' | 'generate'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
 export type SortKey = 'hot' | 'reviews' | 'rating' | 'name'
 
@@ -7,6 +8,7 @@ export interface Filters {
   query: string
   status: StatusFilter
   category: string
+  suburb: string
   phoneOnly: boolean
   sort: SortKey
 }
@@ -27,12 +29,13 @@ const SORTS: { key: SortKey; label: string }[] = [
 
 interface Props {
   filters: Filters
-  categories: string[]
   counts: Record<StatusFilter, number>
   onChange: (next: Partial<Filters>) => void
+  view: View
+  onNavigate: (view: View) => void
 }
 
-export function FilterRail({ filters, categories, counts, onChange }: Props) {
+export function FilterRail({ filters, counts, onChange, view, onNavigate }: Props) {
   return (
     <aside className="rail">
       <div className="brand">
@@ -45,6 +48,33 @@ export function FilterRail({ filters, categories, counts, onChange }: Props) {
         </span>
       </div>
 
+      <nav className="rail__group" aria-label="Workspace">
+        <button
+          type="button"
+          className={`rail__item ${view === 'leads' ? 'is-active' : ''}`}
+          onClick={() => onNavigate('leads')}
+          aria-pressed={view === 'leads'}
+        >
+          <span className="rail__item-lbl"><Rows /> Lead sheet</span>
+        </button>
+        <button
+          type="button"
+          className={`rail__item rail__item--cta ${view === 'generate' ? 'is-active' : ''}`}
+          onClick={() => onNavigate('generate')}
+          aria-pressed={view === 'generate'}
+        >
+          <span className="rail__item-lbl"><Plus /> Generate leads</span>
+        </button>
+      </nav>
+
+      {view === 'generate' ? (
+        <p className="rail__foot">
+          Set an industry, lead count and the criteria that make a good
+          prospect, then generate. New leads are saved and appear on the{' '}
+          <strong>lead sheet</strong>.
+        </p>
+      ) : (
+        <>
       <div className="rail__search">
         <Search className="rail__search-icon" />
         <input
@@ -71,24 +101,6 @@ export function FilterRail({ filters, categories, counts, onChange }: Props) {
           </button>
         ))}
       </nav>
-
-      <div className="rail__group">
-        <p className="rail__label">Category</p>
-        <div className="rail__select">
-          <select
-            value={filters.category}
-            onChange={(e) => onChange({ category: e.target.value })}
-            aria-label="Filter by category"
-          >
-            <option value="">All categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       <div className="rail__group">
         <p className="rail__label">Refine</p>
@@ -123,6 +135,8 @@ export function FilterRail({ filters, categories, counts, onChange }: Props) {
         Built for one offer: <strong>website build &amp; redesign</strong>. Hottest
         leads are established businesses with social proof and no site.
       </p>
+        </>
+      )}
     </aside>
   )
 }

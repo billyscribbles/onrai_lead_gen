@@ -30,6 +30,7 @@ def execute_run(conn, run_id: int, *, client=None) -> None:
         def on_progress(ev):
             scraped["n"] = ev.get("places_scraped", scraped["n"])
             store.update_run(conn, run_id, places_scraped=scraped["n"],
+                             progress=ev.get("message", ""),
                              status="classifying" if ev.get("stage") == "classify" else "running")
 
         leads = runner(run["params"], on_progress=on_progress, client=client)

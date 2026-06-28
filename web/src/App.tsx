@@ -10,12 +10,14 @@ import {
 import { StatStrip } from './components/StatStrip'
 import { LeadRow } from './components/LeadRow'
 import { LeadDrawer } from './components/LeadDrawer'
-import { GenerateModal } from './components/GenerateModal'
+import { GenerateSection } from './components/GenerateSection'
+import { TableFilters } from './components/TableFilters'
 
 const DEFAULT_FILTERS: Filters = {
   query: '',
   status: 'all',
   category: '',
+  suburb: '',
   phoneOnly: false,
   sort: 'hot',
 }
@@ -39,10 +41,15 @@ export default function App() {
   const { leads, loading, error, reload } = useLeads()
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
-  const [generating, setGenerating] = useState(false)
+  const [view, setView] = useState<'leads' | 'generate'>('leads')
 
   const categories = useMemo(
     () => [...new Set(leads.map((l) => l.category).filter(Boolean))].sort(),
+    [leads],
+  )
+
+  const suburbs = useMemo(
+    () => [...new Set(leads.map((l) => l.suburb).filter(Boolean))].sort(),
     [leads],
   )
 
@@ -61,6 +68,7 @@ export default function App() {
     const filtered = leads.filter((l) => {
       if (!matchesStatus(l, filters.status)) return false
       if (filters.category && l.category !== filters.category) return false
+      if (filters.suburb && l.suburb !== filters.suburb) return false
       if (filters.phoneOnly && !l.hasPhone) return false
       if (q) {
         const hay = `${l.name} ${l.category} ${l.suburb}`.toLowerCase()
@@ -78,35 +86,42 @@ export default function App() {
     <div className="app">
       <FilterRail
         filters={filters}
-        categories={categories}
         counts={counts}
         onChange={update}
+        view={view}
+        onNavigate={setView}
       />
 
       <main className="desk">
         <header className="desk__head">
           <div>
-            <p className="desk__eyebrow">Onrai Studio · no-website prospects</p>
+            <p className="desk__eyebrow">
+              {view === 'generate'
+                ? 'Onrai Studio · lead finder'
+                : 'Onrai Studio · no-website prospects'}
+            </p>
             <h1 className="desk__title">
-              {loading
-                ? 'Loading the dial sheet…'
-                : error
-                  ? 'Could not load leads'
-                  : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
+              {view === 'generate'
+                ? 'Generate new leads'
+                : loading
+                  ? 'Loading the dial sheet…'
+                  : error
+                    ? 'Could not load leads'
+                    : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
             </h1>
           </div>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => setGenerating(true)}
-          >
-            + Generate leads
-          </button>
         </header>
 
-        {!loading && !error && <StatStrip leads={leads} />}
+        {view === 'generate' && (
+          <GenerateSection
+            onReload={reload}
+            onViewLeads={() => setView('leads')}
+          />
+        )}
 
-        {error && (
+        {view === 'leads' && !loading && !error && <StatStrip leads={leads} />}
+
+        {view === 'leads' && error && (
           <div className="panel panel--error">
             <p>{error}</p>
             <p className="panel__hint">
@@ -115,7 +130,7 @@ export default function App() {
           </div>
         )}
 
-        {loading && (
+        {view === 'leads' && loading && (
           <div className="sheet" aria-busy="true">
             {Array.from({ length: 6 }).map((_, i) => (
               <div className="row row--skeleton" key={i} />
@@ -123,7 +138,16 @@ export default function App() {
           </div>
         )}
 
-        {!loading && !error && (
+        {view === 'leads' && !loading && !error && (
+          <TableFilters
+            filters={filters}
+            categories={categories}
+            suburbs={suburbs}
+            onChange={update}
+          />
+        )}
+
+        {view === 'leads' && !loading && !error && (
           <section className="sheet" aria-label="Leads">
             <div className="sheet__head">
               <span>#</span>
@@ -155,13 +179,6 @@ export default function App() {
       </main>
 
       <LeadDrawer lead={active} onClose={() => setActive(null)} />
-
-      {generating && (
-        <GenerateModal
-          onClose={() => setGenerating(false)}
-          onDone={reload}
-        />
-      )}
     </div>
   )
 }

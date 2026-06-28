@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS runs (
     apify_run_id TEXT,
     places_scraped INTEGER NOT NULL DEFAULT 0,
     leads_found INTEGER NOT NULL DEFAULT 0,
+    progress TEXT,
     error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     started_at TEXT,
@@ -57,4 +58,12 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     conn.commit()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotent column adds for DBs created before a schema change."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(runs)")}
+    if "progress" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN progress TEXT")

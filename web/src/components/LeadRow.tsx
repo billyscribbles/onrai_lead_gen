@@ -49,7 +49,7 @@ export function LeadRow({ lead, rank, onSelect }: Props) {
         {lead.hasPhone && (
           <span className="chip chip--phone" title={lead.phone}>
             <Phone />
-            Phone
+            {lead.phone}
           </span>
         )}
         {lead.social && (

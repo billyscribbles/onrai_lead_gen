@@ -15,7 +15,10 @@ PARAMS = {
     "per_search": "int — places per category x suburb search",
     "min_reviews": "int — min reviews to count as established",
     "target": "int — desired qualified leads (drives search breadth)",
-    "fetch": "bool — fetch live sites to judge broken/not-mobile",
+    "no_website": "bool — keep only leads with no usable site (none/social_only)",
+    "social_only": "bool — keep only leads whose only presence is a social link",
+    "phone_required": "bool — keep only leads with a phone number",
+    "fetch": "bool — fetch live sites to judge broken/not-mobile (default off)",
     "maps_dataset_id": "str | None — reuse an existing Maps dataset (free)",
 }
 
@@ -32,6 +35,19 @@ def _searches_for_target(target: int, per_search: int, yield_: float, n_suburbs:
     return min(max(math.ceil(places_needed / max(per_search, 1)), 1), n_suburbs)
 
 
+def _keep(row: dict, no_website_only: bool, social_only: bool,
+          phone_required: bool) -> bool:
+    """Apply the user's good-lead gates to a classified lead row."""
+    status = row.get("web_status")
+    if social_only and status != "social_only":
+        return False
+    if no_website_only and status not in ("none", "social_only"):
+        return False
+    if phone_required and not (row.get("phone") or "").strip():
+        return False
+    return True
+
+
 def run(params: dict, on_progress=None, client=None) -> list[dict]:
     meta = get_engine("no_website")
     if client is None:
@@ -43,7 +59,12 @@ def run(params: dict, on_progress=None, client=None) -> list[dict]:
     per_search = int(params.get("per_search", meta.default_per_search))
     min_reviews = int(params.get("min_reviews", meta.default_min_reviews))
     target = int(params.get("target", 25))
-    fetch = bool(params.get("fetch", True))
+    # Default fetch OFF: the reliable buckets (none/social_only) need no site
+    # fetch, and the fetched redesign buckets are flaky (see CLAUDE.md).
+    fetch = bool(params.get("fetch", False))
+    no_website_only = bool(params.get("no_website", True))
+    social_only = bool(params.get("social_only", False))
+    phone_required = bool(params.get("phone_required", False))
     maps_dataset_id = params.get("maps_dataset_id")
 
     max_searches = _searches_for_target(target, per_search, meta.expected_yield, len(suburbs))
@@ -53,6 +74,9 @@ def run(params: dict, on_progress=None, client=None) -> list[dict]:
         max_searches=max_searches, min_reviews=min_reviews, country="au",
         chunk_size=200, limit=None, fetch=fetch, maps_dataset_id=maps_dataset_id,
         on_progress=on_progress)
+
+    rows = [r for r in rows
+            if _keep(r, no_website_only, social_only, phone_required)]
 
     leads = []
     for r in rows:

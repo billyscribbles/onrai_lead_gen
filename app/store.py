@@ -6,7 +6,8 @@ import sqlite3
 
 _RUN_UPDATABLE = {
     "status", "cost_estimate", "cost_actual", "apify_run_id",
-    "places_scraped", "leads_found", "error", "started_at", "finished_at",
+    "places_scraped", "leads_found", "progress", "error",
+    "started_at", "finished_at",
 }
 _SORTABLE = {"reviews_count", "rating", "business_name", "created_at"}
 

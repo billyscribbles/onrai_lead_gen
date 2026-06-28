@@ -25,12 +25,18 @@ cleaning service
 # Auto
 mechanic
 car detailing
+auto electrician
+tyre shop
 
 # Health / fitness
 gym
 physiotherapist
 dentist
 
-# Retail / other
+# Retail / wholesale
 florist
 pet grooming
+clothing store
+boutique
+wholesaler
+homewares

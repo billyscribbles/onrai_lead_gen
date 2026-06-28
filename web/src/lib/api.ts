@@ -19,9 +19,21 @@ export interface Run {
   cost_estimate: number | null
   leads_found: number
   places_scraped: number
+  progress: string | null
   error: string | null
   params: Record<string, unknown>
   created_at: string
+}
+
+/** The good-lead criteria + scope the Generate section sends to the backend. */
+export interface GenParams {
+  category: string
+  suburbs: string[]
+  target: number
+  no_website: boolean
+  social_only: boolean
+  phone_required: boolean
+  min_reviews: number
 }
 
 /** Raw lead row as returned by GET /api/leads. */
@@ -67,21 +79,20 @@ export function fetchLeads(): Promise<{ items: ApiLead[]; total: number }> {
   }).then(json<{ items: ApiLead[]; total: number }>)
 }
 
-export function estimateRun(category: string, target: number): Promise<Estimate> {
+export function estimateRun(params: GenParams): Promise<Estimate> {
   return post('/api/runs/estimate', {
     engine: ENGINE,
-    params: { category, target },
+    params,
   }).then(json<Estimate>)
 }
 
 export function createRun(
-  category: string,
-  target: number,
+  params: GenParams,
   confirmedEstimate: number,
 ): Promise<{ run_id: number }> {
   return post('/api/runs', {
     engine: ENGINE,
-    params: { category, target },
+    params,
     confirmed_estimate: confirmedEstimate,
   }).then(json<{ run_id: number }>)
 }

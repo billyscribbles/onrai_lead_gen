@@ -1,6 +1,8 @@
 .env
 .venv/
-output/
+output/*
+# ...but track the seed CSV so the dashboard ships with leads (ingested on first boot).
+!output/melbourne_no_website_leads.csv
 __pycache__/
 *.pyc
 .pytest_cache/

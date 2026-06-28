@@ -51,6 +51,18 @@ export const Close = ({ className }: P) => (
   </svg>
 )
 
+export const Plus = ({ className }: P) => (
+  <svg {...base} className={className} aria-hidden="true">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+)
+
+export const Rows = ({ className }: P) => (
+  <svg {...base} className={className} aria-hidden="true">
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </svg>
+)
+
 export const Signal = ({ className }: P) => (
   <svg {...base} className={className} aria-hidden="true">
     <path d="M4 18v-3" />

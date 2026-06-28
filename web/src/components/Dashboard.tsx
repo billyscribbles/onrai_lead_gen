@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeads } from '../hooks/useLeads'
+import { logout } from '../lib/api'
 import { sortLeads } from '../lib/leads'
 import type { Lead } from '../types'
 import {
@@ -40,7 +41,13 @@ function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
   return copy.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function Dashboard({ onSignedOut }: { onSignedOut: () => void }) {
+export function Dashboard({
+  canLogout,
+  onSignedOut,
+}: {
+  canLogout: boolean
+  onSignedOut: () => void
+}) {
   const { leads, loading, error, reload } = useLeads()
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
@@ -50,6 +57,12 @@ export function Dashboard({ onSignedOut }: { onSignedOut: () => void }) {
   useEffect(() => {
     if (error === AUTH_ERROR) onSignedOut()
   }, [error, onSignedOut])
+
+  // Clear the cookie, then drop back to the login screen even if the request
+  // hiccups — the local session is over regardless.
+  const handleLogout = useCallback(() => {
+    logout().finally(onSignedOut)
+  }, [onSignedOut])
 
   const industries = useMemo(
     () => industryOptions(leads.map((l) => l.category)),
@@ -98,6 +111,7 @@ export function Dashboard({ onSignedOut }: { onSignedOut: () => void }) {
         onChange={update}
         view={view}
         onNavigate={setView}
+        onLogout={canLogout ? handleLogout : undefined}
       />
 
       <main className="desk">

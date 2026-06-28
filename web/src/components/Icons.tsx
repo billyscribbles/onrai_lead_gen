@@ -17,6 +17,14 @@ export const Phone = ({ className }: P) => (
   </svg>
 )
 
+export const LogOut = ({ className }: P) => (
+  <svg {...base} className={className} aria-hidden="true">
+    <path d="M15 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2" />
+    <path d="M10 17l-5-5 5-5" />
+    <path d="M5 12h12" />
+  </svg>
+)
+
 export const Star = ({ className }: P) => (
   <svg {...base} className={className} fill="currentColor" stroke="none" aria-hidden="true">
     <path d="M12 3.5l2.5 5 5.5.8-4 3.9 1 5.5-4.9-2.6L7.7 18.7l1-5.5-4-3.9 5.5-.8 2.5-5z" />

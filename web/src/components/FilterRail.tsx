@@ -1,4 +1,4 @@
-import { Plus, Rows, Search, Signal } from './Icons'
+import { LogOut, Plus, Rows, Search, Signal } from './Icons'
 
 export type View = 'leads' | 'generate'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
@@ -33,9 +33,18 @@ interface Props {
   onChange: (next: Partial<Filters>) => void
   view: View
   onNavigate: (view: View) => void
+  /** When set (a password is configured), render a sign-out button. */
+  onLogout?: () => void
 }
 
-export function FilterRail({ filters, counts, onChange, view, onNavigate }: Props) {
+export function FilterRail({
+  filters,
+  counts,
+  onChange,
+  view,
+  onNavigate,
+  onLogout,
+}: Props) {
   return (
     <aside className="rail">
       <div className="brand">
@@ -136,6 +145,12 @@ export function FilterRail({ filters, counts, onChange, view, onNavigate }: Prop
         leads are established businesses with social proof and no site.
       </p>
         </>
+      )}
+
+      {onLogout && (
+        <button type="button" className="rail__logout" onClick={onLogout}>
+          <LogOut /> Sign out
+        </button>
       )}
     </aside>
   )

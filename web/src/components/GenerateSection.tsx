@@ -49,8 +49,12 @@ type Phase = 'config' | 'running' | 'done' | 'error'
 function progressFor(run: Run | null): { pct: number; label: string } {
   if (!run) return { pct: 8, label: 'Starting the run…' }
   switch (run.status) {
-    case 'running':
-      return { pct: 38, label: run.progress || 'Sweeping Google Maps…' }
+    case 'running': {
+      // Climb with listings actually seen so the bar reflects real progress,
+      // capped below the classify phase.
+      const seen = run.places_scraped || 0
+      return { pct: Math.min(70, 20 + seen * 4), label: run.progress || 'Sweeping Google Maps…' }
+    }
     case 'classifying':
       return { pct: 78, label: run.progress || 'Classifying listings…' }
     case 'done':

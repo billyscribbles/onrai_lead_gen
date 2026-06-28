@@ -9,10 +9,15 @@ import { Dashboard } from './components/Dashboard'
 export default function App() {
   // null = still checking the session.
   const [authed, setAuthed] = useState<boolean | null>(null)
+  // Whether the backend gates on a password — drives showing the logout button.
+  const [passwordRequired, setPasswordRequired] = useState(false)
 
   useEffect(() => {
     getAuthStatus()
-      .then((s) => setAuthed(s.authed || !s.password_required))
+      .then((s) => {
+        setPasswordRequired(s.password_required)
+        setAuthed(s.authed || !s.password_required)
+      })
       .catch(() => setAuthed(false)) // backend unreachable → show login
   }, [])
 
@@ -32,5 +37,5 @@ export default function App() {
     return <Login onAuthed={() => setAuthed(true)} />
   }
 
-  return <Dashboard onSignedOut={onSignedOut} />
+  return <Dashboard canLogout={passwordRequired} onSignedOut={onSignedOut} />
 }

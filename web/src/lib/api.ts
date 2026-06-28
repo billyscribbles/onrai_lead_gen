@@ -116,3 +116,8 @@ export function getAuthStatus(): Promise<AuthStatus> {
 export function login(password: string): Promise<{ ok: boolean }> {
   return post('/api/auth/login', { password }).then(json<{ ok: boolean }>)
 }
+
+/** Clear the session cookie on the backend. */
+export function logout(): Promise<{ ok: boolean }> {
+  return post('/api/auth/logout', {}).then(json<{ ok: boolean }>)
+}

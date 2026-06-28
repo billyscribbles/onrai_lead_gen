@@ -1556,3 +1556,28 @@ button {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* Sign-out button pinned to the bottom of the dark rail. */
+.rail__logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #2a2d35;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #9aa0aa;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.13s, border-color 0.13s, color 0.13s;
+}
+.rail__logout:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: #3a3e47;
+  color: #e6e8ec;
+}
+.rail__logout svg {
+  width: 15px;
+  height: 15px;
+}

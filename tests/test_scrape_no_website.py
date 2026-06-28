@@ -97,3 +97,96 @@ def test_resolve_status_no_fetch_for_social_only():
     status, consumed = resolve_status(place, True, 10, fetch_fn=_healthy)
     assert status == "social_only"
     assert consumed is False
+
+
+# --- abort plumbing ---------------------------------------------------------
+
+import pytest
+from scrape_no_website import RunAborted, collect_leads, run_maps_lookup
+
+
+class _FakeActor:
+    def __init__(self, run):
+        self._run = run
+
+    def start(self, run_input=None):
+        return self._run
+
+
+class _FakeDataset:
+    def __init__(self, items):
+        self._items = items
+
+    def iterate_items(self):
+        return iter(self._items)
+
+
+class _OneShotRunClient:
+    """Returns SUCCEEDED on the first .get() so the poll loop never sleeps."""
+    def get(self):
+        return {"status": "SUCCEEDED", "id": "R1", "defaultDatasetId": "DS1"}
+
+    def abort(self):
+        raise AssertionError("abort() should not be called on the happy path")
+
+
+class _HappyClient:
+    def actor(self, name):
+        return _FakeActor({"id": "R1"})
+
+    def run(self, run_id):
+        return _OneShotRunClient()
+
+    def dataset(self, ds_id):
+        return _FakeDataset([{"placeId": "p1"}])
+
+
+def test_run_maps_lookup_starts_polls_and_returns_items():
+    captured = {}
+    places = run_maps_lookup(
+        _HappyClient(), ["cafe Footscray VIC"], 5, "au", 200,
+        on_run_start=lambda rid: captured.__setitem__("rid", rid))
+    assert captured["rid"] == "R1"
+    assert places == [{"placeId": "p1"}]
+
+
+def test_run_maps_lookup_aborts_apify_run_when_requested():
+    aborted = []
+
+    class _RunningRunClient:
+        def get(self):
+            return {"status": "RUNNING", "id": "R1", "defaultDatasetId": "DS1"}
+
+        def abort(self):
+            aborted.append("R1")
+
+    class _Client:
+        def actor(self, name):
+            return _FakeActor({"id": "R1"})
+
+        def run(self, run_id):
+            return _RunningRunClient()
+
+        def dataset(self, ds_id):
+            raise AssertionError("dataset() must not be read after an abort")
+
+    with pytest.raises(RunAborted):
+        run_maps_lookup(_Client(), ["x VIC"], 5, "au", 200,
+                        should_abort=lambda: True)
+    assert aborted == ["R1"]
+
+
+def test_collect_leads_aborts_immediately_without_touching_client():
+    class _NoCallClient:
+        def actor(self, *a, **k):
+            raise AssertionError("actor() must not be called once aborted")
+
+        def dataset(self, *a, **k):
+            raise AssertionError("dataset() must not be called once aborted")
+
+    with pytest.raises(RunAborted):
+        collect_leads(
+            _NoCallClient(), categories=["cafe"], suburbs=["Footscray"],
+            per_search=5, max_searches=1, min_reviews=5, country="au",
+            chunk_size=200, limit=None, fetch=False, maps_dataset_id="DS-1",
+            should_abort=lambda: True)

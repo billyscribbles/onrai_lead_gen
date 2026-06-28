@@ -34,6 +34,7 @@ import argparse
 import csv
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -51,6 +52,38 @@ MAPS_ACTOR = "compass/crawler-google-places"
 
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+
+class RunAborted(Exception):
+    """Raised when a caller force-aborts an in-flight run."""
+
+
+_POLL_INTERVAL = 2.0  # seconds between Apify run status polls
+_TERMINAL_RUN_STATUSES = {"SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"}
+
+
+def _wait_for_run(client, run_id, should_abort=None):
+    """Block until an Apify run finishes; abort it if should_abort() turns true.
+
+    Returns the terminal run dict. Raises RunAborted after asking Apify to abort
+    the run, so the caller never pays for or reads a half-finished scrape."""
+    run_client = client.run(run_id)
+    while True:
+        if should_abort is not None and should_abort():
+            run_client.abort()
+            raise RunAborted(f"Apify run {run_id} aborted by user")
+        run = run_client.get()
+        if run.get("status") in _TERMINAL_RUN_STATUSES:
+            return run
+        time.sleep(_POLL_INTERVAL)
+
+
+def _check_run_dict(run, label):
+    """Exit clearly if a polled Apify run dict did not succeed."""
+    status = run.get("status")
+    if status != "SUCCEEDED":
+        sys.exit(f"ERROR: {label} run did not succeed "
+                 f"(status={status}, runId={run.get('id')}).")
 
 
 def get_token() -> str:
@@ -127,8 +160,13 @@ def build_search_strings(categories, suburbs, max_searches, skip_pairs=None):
                 categories, suburbs, max_searches, skip_pairs)]
 
 
-def run_maps_lookup(client, search_strings, per_search, country, chunk_size):
-    """Look up every search string on Google Maps; return all place items."""
+def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
+                    should_abort=None, on_run_start=None):
+    """Look up every search string on Google Maps; return all place items.
+
+    Uses .start()+poll (not the blocking .call()) so a caller can force-abort
+    the in-flight Apify run via ``should_abort``. ``on_run_start`` receives each
+    Apify run id as soon as it is known, so callers can persist it for abort."""
     places = []
     for start in range(0, len(search_strings), chunk_size):
         chunk = search_strings[start:start + chunk_size]
@@ -141,10 +179,15 @@ def run_maps_lookup(client, search_strings, per_search, country, chunk_size):
         print(f"[maps] Searching {len(chunk)} queries "
               f"({start + 1}-{start + len(chunk)} of {len(search_strings)}), "
               f"<= {per_search} places each...")
-        run = client.actor(MAPS_ACTOR).call(run_input=run_input)
-        _check_run(run, "Google Maps lookup")
-        items = list(client.dataset(run.default_dataset_id).iterate_items())
-        print(f"[maps]   -> {len(items)} listings (dataset {run.default_dataset_id})")
+        started = client.actor(MAPS_ACTOR).start(run_input=run_input)
+        run_id = started["id"]
+        if on_run_start is not None:
+            on_run_start(run_id)
+        run = _wait_for_run(client, run_id, should_abort)
+        _check_run_dict(run, "Google Maps lookup")
+        dataset_id = run["defaultDatasetId"]
+        items = list(client.dataset(dataset_id).iterate_items())
+        print(f"[maps]   -> {len(items)} listings (dataset {dataset_id})")
         places.extend(items)
     return places
 
@@ -200,7 +243,8 @@ def write_csv(rows, output_path):
 def collect_leads(client, *, categories, suburbs, per_search, max_searches,
                   min_reviews, country, chunk_size, limit, fetch,
                   maps_dataset_id=None, skip_pairs=None, on_searched=None,
-                  on_progress=None, fetch_fn=fetch_site):
+                  on_progress=None, fetch_fn=fetch_site,
+                  should_abort=None, on_run_start=None):
     """Core no-website pipeline, decoupled from CLI/CSV. Returns lead rows
     (web_presence.no_website_row shape) each with an added 'place_id'.
 
@@ -213,6 +257,12 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
             on_progress({"stage": stage, "message": message,
                          "places_scraped": places})
 
+    def _check_abort():
+        if should_abort is not None and should_abort():
+            raise RunAborted("run aborted by user")
+
+    _check_abort()  # bail before touching Apify if an abort is already pending
+
     if maps_dataset_id:
         _emit("maps", f"Reusing dataset {maps_dataset_id}")
         raw_places = list(client.dataset(maps_dataset_id).iterate_items())
@@ -223,10 +273,13 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
             return []
         searches = [f"{category} {suburb} VIC" for category, suburb in pairs]
         _emit("maps", f"Sweeping {len(searches)} new searches")
-        raw_places = run_maps_lookup(client, searches, per_search, country, chunk_size)
+        raw_places = run_maps_lookup(client, searches, per_search, country,
+                                     chunk_size, should_abort=should_abort,
+                                     on_run_start=on_run_start)
         if on_searched:
             on_searched(pairs)
 
+    _check_abort()
     places = web_presence.dedupe_by_place_id(raw_places)
     places.sort(key=lambda p: p.get("reviewsCount") or 0, reverse=True)
     _emit("classify", f"{len(places)} unique listings", len(places))
@@ -234,6 +287,7 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
     rows = []
     fetch_budget = limit if limit is not None else len(places)
     for place in places:
+        _check_abort()
         if not web_presence.is_real_listing(place, min_reviews):
             continue
         status, consumed = resolve_status(place, fetch, fetch_budget, fetch_fn=fetch_fn)

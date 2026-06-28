@@ -54,6 +54,21 @@ _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
 
+def _as_dict(obj):
+    """Normalise an Apify SDK response to a plain dict.
+
+    apify-client 3.x returns typed pydantic models (``Run``, ``Dataset``, ...)
+    that are NOT subscriptable, where older versions returned dicts. We dump
+    them back to camelCase dicts so the rest of this module keeps using
+    ``obj["defaultDatasetId"]`` / ``obj.get("status")`` unchanged. Plain dicts
+    and ``None`` pass through untouched."""
+    if obj is None or isinstance(obj, dict):
+        return obj
+    if hasattr(obj, "model_dump"):  # pydantic v2 model
+        return obj.model_dump(by_alias=True, mode="json")
+    return obj
+
+
 class RunAborted(Exception):
     """Raised when a caller force-aborts an in-flight run."""
 
@@ -86,7 +101,7 @@ def _wait_for_run(client, run_id, should_abort=None, on_tick=None,
         if should_abort is not None and should_abort():
             run_client.abort()
             raise RunAborted(f"Apify run {run_id} aborted by user")
-        run = run_client.get()
+        run = _as_dict(run_client.get())
         if run.get("status") in _TERMINAL_RUN_STATUSES:
             return run, "completed"
         now = time.monotonic()
@@ -108,7 +123,7 @@ def _wait_for_run(client, run_id, should_abort=None, on_tick=None,
 def _dataset_count(client, dataset_id):
     """Best-effort live item count for an in-flight dataset; 0 if unavailable."""
     try:
-        return (client.dataset(dataset_id).get() or {}).get("itemCount", 0) or 0
+        return (_as_dict(client.dataset(dataset_id).get()) or {}).get("itemCount", 0) or 0
     except Exception:  # noqa: BLE001 — progress is cosmetic; never fail the run
         return 0
 
@@ -222,7 +237,7 @@ def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
         print(f"[maps] Searching {len(chunk)} queries "
               f"({start + 1}-{start + len(chunk)} of {len(search_strings)}), "
               f"<= {per_search} places each...")
-        started = client.actor(MAPS_ACTOR).start(run_input=run_input)
+        started = _as_dict(client.actor(MAPS_ACTOR).start(run_input=run_input))
         run_id = started["id"]
         ds_id = started.get("defaultDatasetId")
         if on_run_start is not None:

@@ -1,6 +1,7 @@
 """Normalize engine output into the unified lead shape."""
 from __future__ import annotations
 
+import re
 from urllib.parse import parse_qs, urlparse
 
 _LEAD_KEYS = (
@@ -16,6 +17,21 @@ def parse_place_id(google_maps_url: str) -> str | None:
     qs = parse_qs(urlparse(google_maps_url).query)
     vals = qs.get("query_place_id")
     return vals[0] if vals else None
+
+
+def dedup_key(business_name: str, suburb: str, place_id: str | None = None) -> str:
+    """Stable identity for a lead, for cross-run de-duplication.
+
+    Prefer Google's ``place_id`` (one per listing, never changes). When a listing
+    has no place_id, fall back to a normalized ``business_name|suburb`` so the
+    same business found via two different searches still collapses to one row.
+    Always non-empty: real listings always have a name (``is_real_listing``).
+    """
+    if place_id and place_id.strip():
+        return place_id.strip()
+    name = re.sub(r"\s+", " ", (business_name or "").strip().lower())
+    sub = re.sub(r"\s+", " ", (suburb or "").strip().lower())
+    return f"{name}|{sub}"
 
 
 def lead_template(**overrides) -> dict:

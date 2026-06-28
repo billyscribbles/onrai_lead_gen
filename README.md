@@ -45,6 +45,15 @@ It sweeps a grid of `category × suburb` searches (`melbourne_categories.txt` ×
 reviews, a real business — not a locality centroid), and classifies each one's web
 presence:
 
+> **No duplicates, no wasted Apify spend.** Every run persists into a shared
+> SQLite seen-set (`output/leads.db`, same DB the dashboard uses). Leads are
+> deduped by Google `place_id` (or `name+suburb` when a listing has no id), so a
+> business found by two different searches — or across two runs — is stored once
+> and refreshed in place, never duplicated. Each `category × suburb` combo you've
+> already swept is **skipped on the next run**, so Apify is never paid to re-crawl
+> covered ground; a run that finds no new ground scrapes nothing and costs $0.
+> Pass `--refresh` to deliberately re-sweep covered combos for fresh data.
+
 | `web_status` | `lead_tag` | Meaning | Reliable? |
 |------|------|---------|-----------|
 | `social_only` | Hot — no website, strong social | "website" is a Facebook/Instagram/Linktree page | ✅ (no fetch) |
@@ -62,9 +71,11 @@ presence:
 > so a site Google lists as `http://` that actually serves a fine `https://` page is
 > correctly dropped.
 
-Output: `output/melbourne_no_website_leads.csv`, most-reviewed (most-established)
-first. Two click-to-open research links per lead: `google_maps_url` (the listing)
-and `google_search_url` (a Google search of the name → opens its knowledge panel).
+Output: `output/melbourne_no_website_leads.csv` — the **full deduped master list**
+exported from the seen-set DB (not just this run's finds), most-reviewed
+(most-established) first. Two click-to-open research links per lead:
+`google_maps_url` (the listing) and `google_search_url` (a Google search of the
+name → opens its knowledge panel).
 Phone is captured when present but **never required** (Mr Baxter, the canonical
 lead, had no phone on Google).
 
@@ -80,7 +91,8 @@ lead, had no phone on Google).
 | `--limit` | (all) | Cap live-site fetches (Tier B) |
 | `--no-fetch` | off | Skip Tier B; keep only the reliable no-site/social leads |
 | `--maps-dataset-id` | (none) | Reuse a Maps dataset (no new cost) |
-| `--output` | `output/melbourne_no_website_leads.csv` | CSV path |
+| `--refresh` | off | Re-sweep `category × suburb` combos already swept (default: skip them to avoid paying Apify twice) |
+| `--output` | `output/melbourne_no_website_leads.csv` | CSV path (full deduped master list) |
 
 ## Cost (Apify free tier)
 

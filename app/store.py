@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from app import normalize
+
 _RUN_UPDATABLE = {
     "status", "cost_estimate", "cost_actual", "apify_run_id",
     "places_scraped", "leads_found", "progress", "error",
@@ -47,20 +49,66 @@ def list_runs(conn, limit: int = 50) -> list[dict]:
 
 
 def insert_leads(conn, run_id: int, engine: str, leads: list[dict]) -> int:
+    """Upsert leads keyed by (engine, dedup_key).
+
+    A business already in the table (same place_id, or same name+suburb when it
+    has no place_id) is refreshed in place rather than duplicated — so re-running
+    overlapping searches never grows the table with copies.
+    """
     rows = [(
         run_id, engine, l.get("business_name", ""), l.get("category", ""),
         l.get("suburb", ""), l.get("address", ""), l.get("phone", ""),
         l.get("email", ""), l.get("website", ""), l.get("web_status", ""),
         l.get("rating"), l.get("reviews_count"), l.get("google_maps_url", ""),
-        l.get("place_id"), json.dumps(l.get("extra") or {}),
+        l.get("place_id"),
+        normalize.dedup_key(l.get("business_name", ""), l.get("suburb", ""),
+                            l.get("place_id")),
+        json.dumps(l.get("extra") or {}),
     ) for l in leads]
     conn.executemany(
         """INSERT INTO leads (run_id, engine, business_name, category, suburb,
            address, phone, email, website, web_status, rating, reviews_count,
-           google_maps_url, place_id, extra)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
+           google_maps_url, place_id, dedup_key, extra)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+           ON CONFLICT(engine, dedup_key) DO UPDATE SET
+             run_id=excluded.run_id, business_name=excluded.business_name,
+             category=excluded.category, suburb=excluded.suburb,
+             address=excluded.address, phone=excluded.phone,
+             email=excluded.email, website=excluded.website,
+             web_status=excluded.web_status, rating=excluded.rating,
+             reviews_count=excluded.reviews_count,
+             google_maps_url=excluded.google_maps_url,
+             place_id=excluded.place_id, extra=excluded.extra""", rows)
     conn.commit()
     return len(rows)
+
+
+def record_searches(conn, engine: str, pairs) -> int:
+    """Mark every (category, suburb) pair as swept for this engine."""
+    pairs = list(pairs)
+    conn.executemany(
+        """INSERT INTO searches (engine, category, suburb, last_swept_at)
+           VALUES (?,?,?,datetime('now'))
+           ON CONFLICT(engine, category, suburb)
+           DO UPDATE SET last_swept_at=datetime('now')""",
+        [(engine, cat, sub) for cat, sub in pairs])
+    conn.commit()
+    return len(pairs)
+
+
+def seen_pairs(conn, engine: str) -> set:
+    """Every (category, suburb) already swept for this engine."""
+    rows = conn.execute(
+        "SELECT category, suburb FROM searches WHERE engine=?", (engine,)).fetchall()
+    return {(r["category"], r["suburb"]) for r in rows}
+
+
+def all_leads(conn, engine: str) -> list[dict]:
+    """Every lead for an engine, most-established first (for CSV export)."""
+    rows = conn.execute(
+        "SELECT * FROM leads WHERE engine=? "
+        "ORDER BY reviews_count IS NULL, reviews_count DESC", (engine,)).fetchall()
+    return [_lead_to_dict(r) for r in rows]
 
 
 def _lead_to_dict(row: sqlite3.Row) -> dict:

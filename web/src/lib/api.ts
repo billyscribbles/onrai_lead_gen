@@ -57,6 +57,12 @@ export interface ApiLead {
 
 const ENGINE = 'no_website'
 
+/** Auth state from GET /api/auth/me. */
+export interface AuthStatus {
+  authed: boolean
+  password_required: boolean
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}))
@@ -99,4 +105,14 @@ export function createRun(
 
 export function getRun(id: number): Promise<Run> {
   return fetch(`/api/runs/${id}`, { credentials: 'include' }).then(json<Run>)
+}
+
+/** Whether a login is required and whether this session is already authed. */
+export function getAuthStatus(): Promise<AuthStatus> {
+  return fetch('/api/auth/me', { credentials: 'include' }).then(json<AuthStatus>)
+}
+
+/** Exchange the shared password for a session cookie. Throws on wrong password. */
+export function login(password: string): Promise<{ ok: boolean }> {
+  return post('/api/auth/login', { password }).then(json<{ ok: boolean }>)
 }

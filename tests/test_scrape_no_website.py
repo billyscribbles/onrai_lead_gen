@@ -3,7 +3,8 @@
 The network fetch is injected so these run offline.
 """
 
-from scrape_no_website import build_search_strings, resolve_status
+from scrape_no_website import (
+    build_search_pairs, build_search_strings, resolve_status)
 
 
 def _healthy(url):
@@ -27,6 +28,24 @@ def test_build_search_strings_is_suburb_major():
 def test_build_search_strings_respects_max_searches():
     grid = build_search_strings(["cafe", "barber"], ["Footscray", "Carlton"], 3)
     assert len(grid) == 3
+
+
+def test_build_search_pairs_skips_already_swept():
+    # 'cafe Footscray' was swept before -> exclude it from the new grid.
+    pairs = build_search_pairs(
+        ["cafe", "barber"], ["Footscray", "Carlton"], None,
+        skip_pairs={("cafe", "Footscray")})
+    assert ("cafe", "Footscray") not in pairs
+    assert ("barber", "Footscray") in pairs
+    assert len(pairs) == 3
+
+
+def test_build_search_pairs_skips_before_capping():
+    # The cap must apply to NEW ground, not be eaten by skipped combos.
+    pairs = build_search_pairs(
+        ["cafe", "barber"], ["Footscray", "Carlton"], 2,
+        skip_pairs={("cafe", "Footscray"), ("barber", "Footscray")})
+    assert pairs == [("cafe", "Carlton"), ("barber", "Carlton")]
 
 
 # --- resolve_status: http-only sites must be fetched, not auto-flagged -------

@@ -98,18 +98,33 @@ def parse_args(argv=None):
                    help="Skip Tier B fetch; drop live sites instead of judging them")
     p.add_argument("--maps-dataset-id", default=None,
                    help="Reuse an existing Maps dataset (skip the Apify run, no cost)")
+    p.add_argument("--refresh", action="store_true",
+                   help="Re-sweep category×suburb combos already swept before "
+                        "(default: skip them to avoid paying Apify twice)")
     p.add_argument("--output", default="output/melbourne_no_website_leads.csv",
                    help="CSV output path")
     return p.parse_args(argv)
 
 
-def build_search_strings(categories, suburbs, max_searches):
-    """Grid of '<category> <suburb> VIC' strings, suburb-major for category variety."""
-    strings = []
-    for suburb in suburbs:
-        for category in categories:
-            strings.append(f"{category} {suburb} VIC")
-    return strings[:max_searches] if max_searches else strings
+def build_search_pairs(categories, suburbs, max_searches, skip_pairs=None):
+    """Grid of (category, suburb) pairs, suburb-major for category variety.
+
+    Pairs in ``skip_pairs`` (already swept on a previous run) are dropped *before*
+    the ``max_searches`` cap, so a capped run spends its whole budget on new ground.
+    """
+    skip = skip_pairs or set()
+    pairs = [(category, suburb)
+             for suburb in suburbs
+             for category in categories
+             if (category, suburb) not in skip]
+    return pairs[:max_searches] if max_searches else pairs
+
+
+def build_search_strings(categories, suburbs, max_searches, skip_pairs=None):
+    """'<category> <suburb> VIC' strings for the (filtered) search grid."""
+    return [f"{category} {suburb} VIC"
+            for category, suburb in build_search_pairs(
+                categories, suburbs, max_searches, skip_pairs)]
 
 
 def run_maps_lookup(client, search_strings, per_search, country, chunk_size):
@@ -184,9 +199,15 @@ def write_csv(rows, output_path):
 
 def collect_leads(client, *, categories, suburbs, per_search, max_searches,
                   min_reviews, country, chunk_size, limit, fetch,
-                  maps_dataset_id=None, on_progress=None, fetch_fn=fetch_site):
+                  maps_dataset_id=None, skip_pairs=None, on_searched=None,
+                  on_progress=None, fetch_fn=fetch_site):
     """Core no-website pipeline, decoupled from CLI/CSV. Returns lead rows
-    (web_presence.no_website_row shape) each with an added 'place_id'."""
+    (web_presence.no_website_row shape) each with an added 'place_id'.
+
+    ``skip_pairs`` are (category, suburb) combos already swept on a prior run;
+    they are excluded from the grid so Apify is never paid to re-crawl them. After
+    a successful sweep ``on_searched`` is called with the pairs actually crawled,
+    so the caller can record them as covered."""
     def _emit(stage, message, places=0):
         if on_progress:
             on_progress({"stage": stage, "message": message,
@@ -196,9 +217,15 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
         _emit("maps", f"Reusing dataset {maps_dataset_id}")
         raw_places = list(client.dataset(maps_dataset_id).iterate_items())
     else:
-        searches = build_search_strings(categories, suburbs, max_searches)
-        _emit("maps", f"Sweeping {len(searches)} searches")
+        pairs = build_search_pairs(categories, suburbs, max_searches, skip_pairs)
+        if not pairs:
+            _emit("done", "0 new searches — all category×suburb ground already swept")
+            return []
+        searches = [f"{category} {suburb} VIC" for category, suburb in pairs]
+        _emit("maps", f"Sweeping {len(searches)} new searches")
         raw_places = run_maps_lookup(client, searches, per_search, country, chunk_size)
+        if on_searched:
+            on_searched(pairs)
 
     places = web_presence.dedupe_by_place_id(raw_places)
     places.sort(key=lambda p: p.get("reviewsCount") or 0, reverse=True)
@@ -222,6 +249,42 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
     return rows
 
 
+def _row_to_lead(row):
+    """Map a no_website_row to the unified lead shape persisted in the DB."""
+    return {
+        "business_name": row["business_name"], "category": row["category"],
+        "suburb": row["suburb"], "address": row["address"], "phone": row["phone"],
+        "email": "", "website": row["website"], "web_status": row["web_status"],
+        "rating": row["rating"], "reviews_count": row["reviews_count"],
+        "google_maps_url": row["google_maps_url"], "place_id": row.get("place_id"),
+        "extra": {"lead_tag": row.get("lead_tag", ""),
+                  "google_search_url": row.get("google_search_url", "")},
+    }
+
+
+def export_csv(conn, store, engine, output_path):
+    """Write the full deduped master list for an engine to CSV (reviews-first)."""
+    rows = []
+    for l in store.all_leads(conn, engine):
+        name = l.get("business_name") or ""
+        rows.append({
+            "business_name": name,
+            "category": l.get("category") or "",
+            "web_status": l.get("web_status") or "",
+            "lead_tag": web_presence.lead_tag(l.get("web_status") or ""),
+            "rating": l.get("rating"),
+            "reviews_count": l.get("reviews_count"),
+            "phone": l.get("phone") or "",
+            "website": l.get("website") or "",
+            "suburb": l.get("suburb") or "",
+            "address": l.get("address") or "",
+            "google_maps_url": l.get("google_maps_url") or "",
+            "google_search_url": web_presence.google_search_url(name),
+        })
+    write_csv(rows, output_path)
+    return len(rows)
+
+
 def main(argv=None):
     args = parse_args(argv)
     client = ApifyClient(get_token())
@@ -236,19 +299,39 @@ def main(argv=None):
         if not categories or not suburbs:
             sys.exit("ERROR: need at least one category and one suburb.")
 
+    # The DB is the shared seen-set: skip category×suburb ground already swept
+    # (unless --refresh), persist new leads deduped, and record what we covered.
+    from app import db as appdb, store
+    conn = appdb.connect()
+    appdb.init_db(conn)
+    engine = "no_website"
+    skip = set() if (args.refresh or args.maps_dataset_id) \
+        else store.seen_pairs(conn, engine)
+    swept = []
+
     rows = collect_leads(
         client, categories=categories, suburbs=suburbs, per_search=args.per_search,
         max_searches=args.max_searches, min_reviews=args.min_reviews,
         country=args.country, chunk_size=args.chunk_size, limit=args.limit,
-        fetch=args.fetch, maps_dataset_id=args.maps_dataset_id)
+        fetch=args.fetch, maps_dataset_id=args.maps_dataset_id,
+        skip_pairs=skip, on_searched=swept.extend)
 
-    write_csv(rows, args.output)
+    rid = store.create_run(conn, engine, {"source": "cli"}, "done", 0.0)
+    store.insert_leads(conn, rid, engine, [_row_to_lead(r) for r in rows])
+    store.record_searches(conn, engine, swept)
+    store.update_run(conn, rid, leads_found=len(rows))
+    total = export_csv(conn, store, engine, args.output)
+    conn.close()
 
     counts = {}
     for r in rows:
         counts[r["web_status"]] = counts.get(r["web_status"], 0) + 1
     breakdown = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items())) or "none"
-    print(f"Done. {len(rows)} leads (by status -> {breakdown}).")
+    skipped = "" if (args.refresh or args.maps_dataset_id) \
+        else f", skipped {len(skip)} already-swept"
+    print(f"This run: {len(rows)} leads from {len(swept)} new searches"
+          f"{skipped} (by status -> {breakdown}).")
+    print(f"Master list now holds {total} unique leads -> {args.output}.")
     return 0
 
 

@@ -33,7 +33,8 @@ def execute_run(conn, run_id: int, *, client=None) -> None:
                              progress=ev.get("message", ""),
                              status="classifying" if ev.get("stage") == "classify" else "running")
 
-        leads = runner(run["params"], on_progress=on_progress, client=client)
+        leads = runner(run["params"], on_progress=on_progress, client=client,
+                       conn=conn)
         leads = dedupe_leads(leads)
         store.insert_leads(conn, run_id, run["engine"], leads)
         store.update_run(conn, run_id, status="done", leads_found=len(leads),

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import scrape_no_website as sw
 import web_presence
+from app import store
 from app.engines.registry import get_engine
 from app.normalize import lead_template
 
@@ -20,6 +21,7 @@ PARAMS = {
     "phone_required": "bool — keep only leads with a phone number",
     "fetch": "bool — fetch live sites to judge broken/not-mobile (default off)",
     "maps_dataset_id": "str | None — reuse an existing Maps dataset (free)",
+    "refresh": "bool — re-sweep category×suburb combos already swept before",
 }
 
 _SUBURBS_FILE = Path(__file__).resolve().parent.parent.parent / "suburbs_melbourne.txt"
@@ -48,7 +50,7 @@ def _keep(row: dict, no_website_only: bool, social_only: bool,
     return True
 
 
-def run(params: dict, on_progress=None, client=None) -> list[dict]:
+def run(params: dict, on_progress=None, client=None, conn=None) -> list[dict]:
     meta = get_engine("no_website")
     if client is None:
         from apify_client import ApifyClient
@@ -66,14 +68,24 @@ def run(params: dict, on_progress=None, client=None) -> list[dict]:
     social_only = bool(params.get("social_only", False))
     phone_required = bool(params.get("phone_required", False))
     maps_dataset_id = params.get("maps_dataset_id")
+    refresh = bool(params.get("refresh", False))
 
     max_searches = _searches_for_target(target, per_search, meta.expected_yield, len(suburbs))
+
+    # The DB is the shared seen-set: skip suburbs already swept for this category
+    # (unless refreshing), so Apify isn't paid to re-crawl covered ground.
+    skip = set() if (refresh or maps_dataset_id or conn is None) \
+        else store.seen_pairs(conn, "no_website")
+    swept = []
 
     rows = sw.collect_leads(
         client, categories=[category], suburbs=suburbs, per_search=per_search,
         max_searches=max_searches, min_reviews=min_reviews, country="au",
         chunk_size=200, limit=None, fetch=fetch, maps_dataset_id=maps_dataset_id,
-        on_progress=on_progress)
+        skip_pairs=skip, on_searched=swept.extend, on_progress=on_progress)
+
+    if conn is not None and swept:
+        store.record_searches(conn, "no_website", swept)
 
     rows = [r for r in rows
             if _keep(r, no_website_only, social_only, phone_required)]

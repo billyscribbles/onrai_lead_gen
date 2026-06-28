@@ -1,13 +1,14 @@
-import type { Lead } from '../types'
+import type { Lead, UserStatus } from '../types'
 import { compact, platformLabel, telHref } from '../lib/format'
-import { Close, MapPin, Phone, Search, SocialIcon, Star } from './Icons'
+import { Archive, Close, MapPin, Phone, Search, SocialIcon, Star } from './Icons'
 
 interface Props {
   lead: Lead | null
   onClose: () => void
+  onSetStatus: (dbId: number, status: UserStatus) => void
 }
 
-export function LeadDrawer({ lead, onClose }: Props) {
+export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
   return (
     <>
       <div
@@ -26,6 +27,35 @@ export function LeadDrawer({ lead, onClose }: Props) {
             <button className="drawer__close" onClick={onClose} aria-label="Close">
               <Close />
             </button>
+
+            <div className="drawer__status">
+              <button
+                type="button"
+                className={`iconbtn ${lead.userStatus === 'favourite' ? 'is-fav' : ''}`}
+                aria-pressed={lead.userStatus === 'favourite'}
+                onClick={() =>
+                  onSetStatus(
+                    lead.dbId,
+                    lead.userStatus === 'favourite' ? 'normal' : 'favourite',
+                  )
+                }
+              >
+                <Star /> {lead.userStatus === 'favourite' ? 'Favourited' : 'Favourite'}
+              </button>
+              <button
+                type="button"
+                className={`iconbtn ${lead.userStatus === 'archived' ? 'is-arch' : ''}`}
+                aria-pressed={lead.userStatus === 'archived'}
+                onClick={() =>
+                  onSetStatus(
+                    lead.dbId,
+                    lead.userStatus === 'archived' ? 'normal' : 'archived',
+                  )
+                }
+              >
+                <Archive /> {lead.userStatus === 'archived' ? 'Archived' : 'Archive'}
+              </button>
+            </div>
 
             <span className={`tag tag--t${lead.tier}`}>{lead.tierLabel}</span>
             <h2 className="drawer__name">{lead.name}</h2>

@@ -117,6 +117,26 @@ def _lead_to_dict(row: sqlite3.Row) -> dict:
     return d
 
 
+_USER_STATUSES = {"normal", "favourite", "archived"}
+
+
+def set_lead_status(conn, lead_id: int, status: str) -> dict | None:
+    """Set a lead's user_status (normal/favourite/archived).
+
+    Returns the updated lead dict, or None if no lead has that id.
+    Raises ValueError for an unknown status.
+    """
+    if status not in _USER_STATUSES:
+        raise ValueError(f"invalid user_status: {status!r}")
+    cur = conn.execute(
+        "UPDATE leads SET user_status=? WHERE id=?", (status, lead_id))
+    conn.commit()
+    if cur.rowcount == 0:
+        return None
+    row = conn.execute("SELECT * FROM leads WHERE id=?", (lead_id,)).fetchone()
+    return _lead_to_dict(row) if row else None
+
+
 def query_leads(conn, *, engine=None, category=None, web_status=None,
                 suburb=None, q=None, sort="reviews_count",
                 page=1, page_size=50) -> dict:
@@ -132,7 +152,7 @@ def query_leads(conn, *, engine=None, category=None, web_status=None,
     order = f"ORDER BY {sort_col} IS NULL, {sort_col} DESC" \
         if sort_col != "business_name" else "ORDER BY business_name ASC"
     total = conn.execute(f"SELECT COUNT(*) c FROM leads {clause}", args).fetchone()["c"]
-    page = max(1, int(page)); page_size = max(1, min(int(page_size), 200))
+    page = max(1, int(page)); page_size = max(1, min(int(page_size), 500))
     rows = conn.execute(
         f"SELECT * FROM leads {clause} {order} LIMIT ? OFFSET ?",
         (*args, page_size, (page - 1) * page_size)).fetchall()

@@ -6,6 +6,8 @@ offline with no Apify calls.
 
 import sqlite3
 
+import pytest
+
 from app import db, store
 from app.normalize import dedup_key
 
@@ -118,3 +120,71 @@ def test_migration_collapses_legacy_duplicate_rows(tmp_path):
     leads = store.all_leads(conn, "no_website")
     assert len(leads) == 1
     assert leads[0]["dedup_key"] == "ChIJsame"
+
+
+# --- user_status: favourite / archive --------------------------------------
+
+
+def test_new_lead_defaults_to_normal_status(tmp_path):
+    conn = _db(tmp_path)
+    r = store.create_run(conn, "no_website", {}, "done", 0.0)
+    store.insert_leads(conn, r, "no_website", [_lead()])
+    assert store.all_leads(conn, "no_website")[0]["user_status"] == "normal"
+
+
+def test_set_lead_status_updates_and_returns_lead(tmp_path):
+    conn = _db(tmp_path)
+    r = store.create_run(conn, "no_website", {}, "done", 0.0)
+    store.insert_leads(conn, r, "no_website", [_lead()])
+    lead_id = store.all_leads(conn, "no_website")[0]["id"]
+
+    updated = store.set_lead_status(conn, lead_id, "favourite")
+    assert updated["user_status"] == "favourite"
+    assert store.all_leads(conn, "no_website")[0]["user_status"] == "favourite"
+
+
+def test_set_lead_status_rejects_unknown_value(tmp_path):
+    conn = _db(tmp_path)
+    r = store.create_run(conn, "no_website", {}, "done", 0.0)
+    store.insert_leads(conn, r, "no_website", [_lead()])
+    lead_id = store.all_leads(conn, "no_website")[0]["id"]
+    with pytest.raises(ValueError):
+        store.set_lead_status(conn, lead_id, "starred")
+
+
+def test_set_lead_status_returns_none_for_missing_lead(tmp_path):
+    conn = _db(tmp_path)
+    assert store.set_lead_status(conn, 999, "favourite") is None
+
+
+# --- query_leads page_size cap ----------------------------------------------
+
+
+def test_query_leads_page_size_500_not_clamped(tmp_path):
+    """page_size=500 should be accepted as-is (not clamped down to 200)."""
+    conn = _db(tmp_path)
+    result = store.query_leads(conn, page_size=500)
+    assert result["page_size"] == 500
+
+
+def test_query_leads_page_size_9999_clamps_to_500(tmp_path):
+    """page_size beyond 500 should clamp to 500."""
+    conn = _db(tmp_path)
+    result = store.query_leads(conn, page_size=9999)
+    assert result["page_size"] == 500
+
+
+def test_upsert_preserves_user_status(tmp_path):
+    # Re-scraping the same business must NOT wipe a star/archive.
+    conn = _db(tmp_path)
+    r1 = store.create_run(conn, "no_website", {}, "done", 0.0)
+    store.insert_leads(conn, r1, "no_website", [_lead(reviews_count=69)])
+    lead_id = store.all_leads(conn, "no_website")[0]["id"]
+    store.set_lead_status(conn, lead_id, "favourite")
+
+    r2 = store.create_run(conn, "no_website", {}, "done", 0.0)
+    store.insert_leads(conn, r2, "no_website", [_lead(reviews_count=80)])  # re-scrape
+
+    refreshed = store.all_leads(conn, "no_website")[0]
+    assert refreshed["reviews_count"] == 80          # data refreshed
+    assert refreshed["user_status"] == "favourite"   # status preserved

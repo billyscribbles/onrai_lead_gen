@@ -3,6 +3,7 @@ import { LogOut, Plus, Rows, Search, Signal } from './Icons'
 export type View = 'leads' | 'generate'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
 export type SortKey = 'hot' | 'reviews' | 'rating' | 'name'
+export type LeadBucket = 'active' | 'favourites' | 'archived'
 
 export interface Filters {
   query: string
@@ -11,6 +12,7 @@ export interface Filters {
   suburb: string
   phoneOnly: boolean
   sort: SortKey
+  bucket: LeadBucket
 }
 
 const STATUS: { key: StatusFilter; label: string }[] = [

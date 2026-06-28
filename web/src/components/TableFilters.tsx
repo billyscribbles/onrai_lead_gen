@@ -1,5 +1,11 @@
-import type { Filters } from './FilterRail'
+import type { Filters, LeadBucket } from './FilterRail'
 import { Search } from './Icons'
+
+const BUCKETS: { key: LeadBucket; label: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'favourites', label: 'Favourites' },
+  { key: 'archived', label: 'Archived' },
+]
 
 interface Props {
   filters: Filters
@@ -14,6 +20,19 @@ export function TableFilters({ filters, industries, suburbs, onChange }: Props) 
 
   return (
     <div className="tablebar" role="group" aria-label="Table filters">
+      <div className="tablebar__buckets" role="group" aria-label="Lead bucket">
+        {BUCKETS.map((b) => (
+          <button
+            key={b.key}
+            type="button"
+            className={`bucket ${filters.bucket === b.key ? 'is-active' : ''}`}
+            onClick={() => onChange({ bucket: b.key })}
+            aria-pressed={filters.bucket === b.key}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
       <label className="tablebar__field tablebar__field--search">
         <span className="tablebar__label">Search</span>
         <div className="tablebar__search">

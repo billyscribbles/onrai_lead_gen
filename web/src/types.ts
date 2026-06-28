@@ -1,5 +1,7 @@
 export type WebStatus = 'none' | 'social_only' | 'broken' | 'not_mobile' | string
 
+export type UserStatus = 'normal' | 'favourite' | 'archived'
+
 export type SocialPlatform =
   | 'instagram'
   | 'facebook'
@@ -26,6 +28,9 @@ export interface RawLead {
 /** A lead enriched with the derived fields the dial-sheet ranks on. */
 export interface Lead {
   id: string
+  /** Real SQLite primary key — needed to PATCH this lead. */
+  dbId: number
+  userStatus: UserStatus
   name: string
   category: string
   webStatus: WebStatus

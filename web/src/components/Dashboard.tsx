@@ -7,6 +7,7 @@ import {
   FilterRail,
   type Filters,
   type StatusFilter,
+  type LeadBucket,
 } from './FilterRail'
 import { StatStrip } from './StatStrip'
 import { LeadRow } from './LeadRow'
@@ -24,6 +25,7 @@ const DEFAULT_FILTERS: Filters = {
   suburb: '',
   phoneOnly: false,
   sort: 'hot',
+  bucket: 'active',
 }
 
 const AUTH_ERROR = 'Not authenticated'
@@ -32,6 +34,12 @@ function matchesStatus(lead: Lead, status: StatusFilter): boolean {
   if (status === 'all') return true
   if (status === 'top') return lead.tier === 1
   return lead.webStatus === status
+}
+
+function matchesBucket(lead: Lead, bucket: LeadBucket): boolean {
+  if (bucket === 'favourites') return lead.userStatus === 'favourite'
+  if (bucket === 'archived') return lead.userStatus === 'archived'
+  return lead.userStatus !== 'archived' // 'active': normal + favourite
 }
 
 function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
@@ -50,7 +58,7 @@ export function Dashboard({
   canLogout: boolean
   onSignedOut: () => void
 }) {
-  const { leads, loading, error, reload } = useLeads()
+  const { leads, loading, error, reload, setLeadStatus } = useLeads()
   const { run, dismiss: dismissRun } = useActiveRun()
   const reloadedFor = useRef<number | null>(null)
 
@@ -102,6 +110,7 @@ export function Dashboard({
   const visible = useMemo(() => {
     const q = filters.query.trim().toLowerCase()
     const filtered = leads.filter((l) => {
+      if (!matchesBucket(l, filters.bucket)) return false
       if (!matchesStatus(l, filters.status)) return false
       if (filters.category && industryGroup(l.category) !== filters.category) return false
       if (filters.suburb && l.suburb !== filters.suburb) return false
@@ -216,6 +225,7 @@ export function Dashboard({
                   lead={lead}
                   rank={i + 1}
                   onSelect={setActive}
+                  onSetStatus={setLeadStatus}
                 />
               ))
             )}
@@ -227,7 +237,11 @@ export function Dashboard({
         <RunWidget onView={() => setView('generate')} />
       )}
 
-      <LeadDrawer lead={active} onClose={() => setActive(null)} />
+      <LeadDrawer
+        lead={active ? leads.find((l) => l.dbId === active.dbId) ?? active : null}
+        onClose={() => setActive(null)}
+        onSetStatus={setLeadStatus}
+      />
     </div>
   )
 }

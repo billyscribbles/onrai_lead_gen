@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { loadLeads } from '../lib/leads'
-import type { Lead } from '../types'
+import { patchLeadStatus } from '../lib/api'
+import type { Lead, UserStatus } from '../types'
 
 interface State {
   leads: Lead[]
   loading: boolean
   error: string | null
   reload: () => void
+  setLeadStatus: (dbId: number, status: UserStatus) => void
 }
 
 export function useLeads(): State {
@@ -31,5 +33,27 @@ export function useLeads(): State {
     reload()
   }, [reload])
 
-  return { leads, loading, error, reload }
+  const setLeadStatus = useCallback((dbId: number, status: UserStatus) => {
+    let prev: UserStatus | undefined
+    setLeads((cur) =>
+      cur.map((l) => {
+        if (l.dbId !== dbId) return l
+        prev = l.userStatus
+        return { ...l, userStatus: status }
+      }),
+    )
+    patchLeadStatus(dbId, status).catch((e: unknown) => {
+      // Roll back the optimistic change and surface the failure.
+      setLeads((cur) =>
+        cur.map((l) =>
+          l.dbId === dbId && prev !== undefined
+            ? { ...l, userStatus: prev }
+            : l,
+        ),
+      )
+      setError(e instanceof Error ? e.message : 'Failed to update lead')
+    })
+  }, [])
+
+  return { leads, loading, error, reload, setLeadStatus }
 }

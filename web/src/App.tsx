@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getAuthStatus } from './lib/api'
 import { Login } from './components/Login'
 import { Dashboard } from './components/Dashboard'
+import { RunProvider } from './run/RunProvider'
 
 /** Auth gate: check the session once, show Login until authed, then the
  *  Dashboard. Mounting the Dashboard only when authed means its lead fetch
@@ -37,5 +38,9 @@ export default function App() {
     return <Login onAuthed={() => setAuthed(true)} />
   }
 
-  return <Dashboard canLogout={passwordRequired} onSignedOut={onSignedOut} />
+  return (
+    <RunProvider>
+      <Dashboard canLogout={passwordRequired} onSignedOut={onSignedOut} />
+    </RunProvider>
+  )
 }

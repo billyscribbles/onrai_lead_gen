@@ -7,6 +7,7 @@ import {
   type GenParams,
   type Run,
 } from '../lib/api'
+import { progressFor } from '../run/progress'
 
 interface Props {
   /** Refresh the leads sheet after a successful run. */
@@ -44,25 +45,6 @@ const ALL_SUBURBS = SUBURB_GROUPS.flatMap((g) => g.items)
 const CUSTOM = '__custom__'
 
 type Phase = 'config' | 'running' | 'done' | 'error'
-
-/** Phase weight → a believable progress-bar fill + a default status line. */
-function progressFor(run: Run | null): { pct: number; label: string } {
-  if (!run) return { pct: 8, label: 'Starting the run…' }
-  switch (run.status) {
-    case 'running': {
-      // Climb with listings actually seen so the bar reflects real progress,
-      // capped below the classify phase.
-      const seen = run.places_scraped || 0
-      return { pct: Math.min(70, 20 + seen * 4), label: run.progress || 'Sweeping Google Maps…' }
-    }
-    case 'classifying':
-      return { pct: 78, label: run.progress || 'Classifying listings…' }
-    case 'done':
-      return { pct: 100, label: 'Done' }
-    default:
-      return { pct: 100, label: run.progress || run.status }
-  }
-}
 
 export function GenerateSection({ onReload, onViewLeads }: Props) {
   const [industry, setIndustry] = useState('cafe')

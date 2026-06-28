@@ -50,7 +50,8 @@ def _keep(row: dict, no_website_only: bool, social_only: bool,
     return True
 
 
-def run(params: dict, on_progress=None, client=None, conn=None) -> list[dict]:
+def run(params: dict, on_progress=None, client=None, conn=None,
+        should_abort=None, on_run_start=None) -> list[dict]:
     meta = get_engine("no_website")
     if client is None:
         from apify_client import ApifyClient
@@ -82,7 +83,8 @@ def run(params: dict, on_progress=None, client=None, conn=None) -> list[dict]:
         client, categories=[category], suburbs=suburbs, per_search=per_search,
         max_searches=max_searches, min_reviews=min_reviews, country="au",
         chunk_size=200, limit=None, fetch=fetch, maps_dataset_id=maps_dataset_id,
-        skip_pairs=skip, on_searched=swept.extend, on_progress=on_progress)
+        skip_pairs=skip, on_searched=swept.extend, on_progress=on_progress,
+        should_abort=should_abort, on_run_start=on_run_start)
 
     if conn is not None and swept:
         store.record_searches(conn, "no_website", swept)

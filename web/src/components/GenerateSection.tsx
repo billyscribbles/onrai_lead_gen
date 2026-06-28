@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { estimateRun, type Estimate, type GenParams } from '../lib/api'
 import { useActiveRun } from '../run/RunProvider'
 import { progressFor, runPhase } from '../run/progress'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface Props {
   /** Jump back to the leads view. */
@@ -50,8 +51,9 @@ export function GenerateSection({ onViewLeads }: Props) {
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [estimating, setEstimating] = useState(false)
 
-  const { runId, run, error, start, dismiss } = useActiveRun()
+  const { runId, run, error, start, dismiss, abort, aborting } = useActiveRun()
   const phase = runPhase(runId, run, error)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const category = (industry === CUSTOM ? custom : industry).trim()
 
@@ -322,9 +324,19 @@ export function GenerateSection({ onViewLeads }: Props) {
           </button>
         )}
         {busy && (
-          <button type="button" className="btn btn--primary gen__go" disabled>
-            Generating…
-          </button>
+          <div className="gen__go-group">
+            <button type="button" className="btn btn--primary gen__go" disabled>
+              Generating…
+            </button>
+            <button
+              type="button"
+              className="btn btn--danger"
+              onClick={() => setConfirmOpen(true)}
+              disabled={aborting}
+            >
+              {aborting ? 'Stopping…' : 'Stop'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -371,6 +383,28 @@ export function GenerateSection({ onViewLeads }: Props) {
           <button type="button" className="btn" onClick={reset}>Try again</button>
         </div>
       )}
+
+      {phase === 'aborted' && (
+        <div className="gen__result">
+          <p>Run stopped. No leads from this run were saved.</p>
+          <button type="button" className="btn" onClick={reset}>
+            Start over
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Stop this run?"
+        message="Apify scraping will be aborted and no leads from this run will be saved."
+        confirmLabel="Stop run"
+        danger
+        onConfirm={() => {
+          setConfirmOpen(false)
+          void abort()
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </section>
   )
 }

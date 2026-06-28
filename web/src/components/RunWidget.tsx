@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useActiveRun } from '../run/RunProvider'
 import { progressFor, runPhase } from '../run/progress'
+import { ConfirmDialog } from './ConfirmDialog'
 
 /** How long the green success bar lingers before it dismisses itself. */
 const DONE_DISMISS_MS = 6000
@@ -12,8 +13,9 @@ const DONE_DISMISS_MS = 6000
  * auto-dismisses after a few seconds. `onView` jumps to the Generate view.
  */
 export function RunWidget({ onView }: { onView: () => void }) {
-  const { runId, run, error, dismiss } = useActiveRun()
+  const { runId, run, error, dismiss, abort, aborting } = useActiveRun()
   const phase = runPhase(runId, run, error)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   // Once finished, let the success bar breathe for a moment, then clear it.
   useEffect(() => {
@@ -28,56 +30,85 @@ export function RunWidget({ onView }: { onView: () => void }) {
   const busy = phase === 'running'
   const done = phase === 'done'
   const isError = phase === 'error'
+  const isAborted = phase === 'aborted'
 
   const found = run?.leads_found ?? 0
   const label = isError
     ? error || 'Run failed'
-    : done
-      ? `Found ${found} ${found === 1 ? 'lead' : 'leads'} — saved`
-      : prog.label
+    : isAborted
+      ? 'Run stopped'
+      : done
+        ? `Found ${found} ${found === 1 ? 'lead' : 'leads'} — saved`
+        : prog.label
 
   return (
-    <div
-      className={`runbar ${done ? 'runbar--done' : ''} ${isError ? 'runbar--error' : ''}`}
-      role="status"
-      aria-live="polite"
-    >
-      <div className="runbar__row">
-        <span className="runbar__label">
-          {done && (
-            <span className="runbar__check" aria-hidden="true">
-              ✓
-            </span>
+    <>
+      <div
+        className={`runbar ${done ? 'runbar--done' : ''} ${isError ? 'runbar--error' : ''} ${isAborted ? 'runbar--stopped' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="runbar__row">
+          <span className="runbar__label">
+            {done && (
+              <span className="runbar__check" aria-hidden="true">
+                ✓
+              </span>
+            )}
+            {label}
+          </span>
+
+          {busy && <span className="runbar__pct mono">{prog.pct}%</span>}
+
+          {busy && (
+            <button
+              type="button"
+              className="runbar__stop"
+              onClick={() => setConfirmOpen(true)}
+              disabled={aborting}
+            >
+              {aborting ? 'Stopping…' : 'Stop'}
+            </button>
           )}
-          {label}
-        </span>
 
-        {busy && <span className="runbar__pct mono">{prog.pct}%</span>}
-
-        <button type="button" className="runbar__view" onClick={onView}>
-          View
-        </button>
-
-        {!busy && (
-          <button
-            type="button"
-            className="runbar__x"
-            onClick={dismiss}
-            aria-label="Dismiss"
-          >
-            ×
+          <button type="button" className="runbar__view" onClick={onView}>
+            View
           </button>
+
+          {!busy && (
+            <button
+              type="button"
+              className="runbar__x"
+              onClick={dismiss}
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
+        {!isError && !isAborted && (
+          <div className="gen__track runbar__track">
+            <div
+              className={`gen__fill ${busy ? 'is-animated' : ''}`}
+              style={{ width: `${prog.pct}%` }}
+            />
+          </div>
         )}
       </div>
 
-      {!isError && (
-        <div className="gen__track runbar__track">
-          <div
-            className={`gen__fill ${busy ? 'is-animated' : ''}`}
-            style={{ width: `${prog.pct}%` }}
-          />
-        </div>
-      )}
-    </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Stop this run?"
+        message="Apify scraping will be aborted and no leads from this run will be saved."
+        confirmLabel="Stop run"
+        danger
+        onConfirm={() => {
+          setConfirmOpen(false)
+          void abort()
+        }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   )
 }

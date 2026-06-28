@@ -2004,3 +2004,40 @@ button {
   border-color: #d98a76;
   background: #fdf3f0;
 }
+
+.runbar__stop {
+  flex: none;
+  border: 1px solid #e2b3a6;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.runbar__stop:hover {
+  border-color: #d98a76;
+  background: #fdf3f0;
+}
+
+.runbar__stop:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.runbar--stopped {
+  border-color: var(--muted-2);
+  background: var(--paper-alt);
+}
+
+.runbar--stopped .runbar__label {
+  color: var(--ink-soft);
+}
+
+.gen__go-group {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}

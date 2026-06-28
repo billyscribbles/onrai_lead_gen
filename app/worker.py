@@ -5,6 +5,7 @@ import threading
 
 from app import db, store
 from app.apify import make_client
+from app.config import settings
 from app.engines import no_website
 from app.normalize import dedupe_leads
 from scrape_no_website import RunAborted
@@ -56,14 +57,26 @@ def execute_run(conn, run_id: int, *, client=None) -> None:
                        conn=conn, should_abort=should_abort,
                        on_run_start=on_run_start)
         leads = dedupe_leads(leads)
-        store.insert_leads(conn, run_id, run["engine"], leads)
+        saved = store.insert_leads(conn, run_id, run["engine"], leads)
+        cost_actual = round(scraped["n"] * settings.cost_per_place, 4)
         store.update_run(conn, run_id, status="done", leads_found=len(leads),
-                         places_scraped=scraped["n"], finished_at=_now(conn))
+                         places_scraped=scraped["n"], cost_actual=cost_actual,
+                         progress=_done_message(saved), finished_at=_now(conn))
     except RunAborted:
         store.update_run(conn, run_id, status="aborted", finished_at=_now(conn))
     except Exception as exc:  # noqa: BLE001 — surface any failure to the UI
         store.update_run(conn, run_id, status="failed", error=str(exc),
                          finished_at=_now(conn))
+
+
+def _done_message(saved: dict) -> str:
+    """Human summary of a finished run, surfacing dedup (new vs refreshed)."""
+    total, new, refreshed = saved["total"], saved["new"], saved["refreshed"]
+    noun = "lead" if total == 1 else "leads"
+    if refreshed:
+        return (f"Saved {total} {noun} — {new} new, "
+                f"{refreshed} refreshed duplicate{'s' if refreshed != 1 else ''}")
+    return f"Saved {total} {noun} — all new"
 
 
 def _now(conn) -> str:

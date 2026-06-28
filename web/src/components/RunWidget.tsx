@@ -13,7 +13,7 @@ const DONE_DISMISS_MS = 6000
  * auto-dismisses after a few seconds. `onView` jumps to the Generate view.
  */
 export function RunWidget({ onView }: { onView: () => void }) {
-  const { runId, run, error, dismiss, abort, aborting } = useActiveRun()
+  const { runId, run, error, dismiss, abort, aborting, stalled } = useActiveRun()
   const phase = runPhase(runId, run, error)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -57,6 +57,12 @@ export function RunWidget({ onView }: { onView: () => void }) {
             )}
             {label}
           </span>
+
+          {busy && stalled && (
+            <span className="runbar__stalled" title="The Maps actor is winding down; it will auto-finalize and keep what it found.">
+              taking longer than usual…
+            </span>
+          )}
 
           {busy && <span className="runbar__pct mono">{prog.pct}%</span>}
 
@@ -105,7 +111,9 @@ export function RunWidget({ onView }: { onView: () => void }) {
         danger
         onConfirm={() => {
           setConfirmOpen(false)
+          // Stop the run and clear the bar — user starts fresh from the scope form.
           void abort()
+          dismiss()
         }}
         onCancel={() => setConfirmOpen(false)}
       />

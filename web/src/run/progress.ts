@@ -22,21 +22,49 @@ export function runPhase(
   return 'running' // running | classifying | awaiting_confirm | imported
 }
 
-/** Phase weight → a believable progress-bar fill + a default status line. */
-export function progressFor(run: Run | null): { pct: number; label: string } {
-  if (!run) return { pct: 8, label: 'Starting the run…' }
+export type RunStage =
+  | 'starting'
+  | 'sweeping'
+  | 'finalizing'
+  | 'classifying'
+  | 'done'
+  | 'ended'
+
+/** Phase weight → an honest progress-bar fill, a status line, and the stage. */
+export function progressFor(
+  run: Run | null,
+): { pct: number; label: string; stage: RunStage } {
+  if (!run) return { pct: 6, label: 'Starting the run…', stage: 'starting' }
+  const msg = run.progress || ''
   switch (run.status) {
     case 'running': {
+      const seen = run.places_scraped || 0
+      // The watchdog emits this when it winds the actor down early but keeps the
+      // data — show it as a distinct "finalizing" step, not a stalled sweep.
+      if (/wound down early/i.test(msg)) {
+        return { pct: 74, label: msg, stage: 'finalizing' }
+      }
       // Climb with listings actually seen so the bar reflects real progress,
       // capped below the classify phase.
-      const seen = run.places_scraped || 0
-      return { pct: Math.min(70, 20 + seen * 4), label: run.progress || 'Sweeping Google Maps…' }
+      return {
+        pct: Math.min(72, 18 + seen * 3),
+        label: msg || 'Sweeping Google Maps…',
+        stage: 'sweeping',
+      }
     }
     case 'classifying':
-      return { pct: 78, label: run.progress || 'Classifying listings…' }
+      return { pct: 84, label: msg || 'Classifying listings…', stage: 'classifying' }
     case 'done':
-      return { pct: 100, label: 'Done' }
+      return { pct: 100, label: msg || 'Done', stage: 'done' }
     default:
-      return { pct: 100, label: run.progress || run.status }
+      return { pct: 100, label: msg || run.status, stage: 'ended' }
   }
+}
+
+/** "1m 12s" style elapsed formatting for the detail panel. */
+export function formatElapsed(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  return `${m}m ${String(s % 60).padStart(2, '0')}s`
 }

@@ -8,6 +8,20 @@
 
 **Tech Stack:** Python 3 / FastAPI / SQLite (stdlib `sqlite3`), pytest. React 19 / TypeScript / Vite, oxlint. No new dependencies.
 
+> **Rebase note (2026-06-29, during execution):** discovered an in-flight WIP that
+> already moves tiering to the backend via a **better** design than this plan's
+> original SQL `CASE`. Adopted it instead:
+> - `tier`/`heat` are real **columns** on `leads` (migration + backfill), computed
+>   at insert time by `web_presence.lead_tier` / `lead_heat` (the pure tested
+>   module is the single source of truth, mirrored by `leads.ts`).
+> - So the **"hot" sort = `ORDER BY tier ASC, reviews_count DESC`** (the `tier`
+>   column), **"top" filter = `tier = 1`** — no inline `CASE` expression.
+> - Task 3's tier `CASE` is replaced by tier-column ordering; everything else in
+>   Tasks 1–11 (industry grouping, the new filters, `lead_facets`, the
+>   pager/facets frontend) is unchanged and still needed.
+> - Executed directly by the controller (not subagents) because the WIP leaves
+>   the target files dirty; commits touch only this work's files.
+
 ## Global Constraints
 
 - **No schema/migration changes.** The `leads` table already has every column needed.

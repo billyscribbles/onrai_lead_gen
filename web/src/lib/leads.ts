@@ -1,4 +1,4 @@
-import { fetchLeads, type ApiLead } from './api'
+import { fetchLeads, type ApiLead, type LeadQuery } from './api'
 import type { Lead, RawLead, SocialPlatform, UserStatus } from '../types'
 
 /**
@@ -58,7 +58,13 @@ function toLead(
   const hasPhone = Boolean(r.phone && r.phone.trim())
   const reviews = parseInt(r.reviews_count || '0', 10) || 0
   const ratingNum = parseFloat(r.rating)
-  const { tier, label } = tierFor(r.web_status, hasPhone)
+  // Prefer the server-computed tier/heat (single source of truth) and fall back
+  // to the identical local compute for legacy rows that predate the columns.
+  const local = tierFor(r.web_status, hasPhone)
+  const apiTier = parseInt(raw.tier ?? '', 10)
+  const apiHeat = parseInt(raw.heat ?? '', 10)
+  const tier = (Number.isFinite(apiTier) && apiTier >= 1 ? apiTier : local.tier) as Lead['tier']
+  const label = local.label
 
   return {
     id: `${r.business_name}-${index}`,
@@ -82,7 +88,7 @@ function toLead(
     social: socialOf(r.website),
     tier,
     tierLabel: label,
-    heat: heatFor(tier, reviews, hasPhone),
+    heat: Number.isFinite(apiHeat) ? apiHeat : heatFor(tier, reviews, hasPhone),
   }
 }
 
@@ -101,28 +107,22 @@ function apiLeadToRaw(item: ApiLead): Record<string, string> {
     address: item.address ?? '',
     google_maps_url: item.google_maps_url ?? '',
     google_search_url: item.extra?.google_search_url ?? '',
+    tier: item.tier != null ? String(item.tier) : '',
+    heat: item.heat != null ? String(item.heat) : '',
   }
 }
 
-/** Fetch from the backend API + classify, sorted hottest-first. */
-export async function loadLeads(): Promise<Lead[]> {
-  const { items } = await fetchLeads()
+/** Fetch one page from the backend + classify. Server owns filter/sort/paging. */
+export async function loadLeads(
+  params: LeadQuery,
+): Promise<{ leads: Lead[]; total: number }> {
+  const { items, total } = await fetchLeads(params)
   const leads = items.map((item, i) =>
     toLead(apiLeadToRaw(item), i, item.id, normalizeStatus(item.user_status), item.created_at, item.run_id ?? null),
   )
-  return sortLeads(leads)
+  return { leads, total }
 }
 
 function normalizeStatus(s: string | undefined): UserStatus {
   return s === 'favourite' || s === 'archived' ? s : 'normal'
-}
-
-/** Default ordering: tier, then traction (reviews), then rating. */
-export function sortLeads(leads: Lead[]): Lead[] {
-  return [...leads].sort(
-    (a, b) =>
-      a.tier - b.tier ||
-      b.reviews - a.reviews ||
-      (b.rating ?? 0) - (a.rating ?? 0),
-  )
 }

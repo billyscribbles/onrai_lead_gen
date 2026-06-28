@@ -19,6 +19,10 @@ class Settings:
     app_password: str | None
     session_secret: str
     cost_per_place: float
+    # Wind-down watchdog: finalize a run (keeping data) if the Maps actor's item
+    # count stalls for this many seconds, or the whole sweep overruns the cap.
+    maps_plateau_secs: float
+    maps_max_run_secs: float
 
 
 def _load() -> Settings:
@@ -28,6 +32,8 @@ def _load() -> Settings:
         app_password=os.environ.get("APP_PASSWORD"),
         session_secret=os.environ.get("SESSION_SECRET", "dev-insecure-secret-change-me"),
         cost_per_place=float(os.environ.get("COST_PER_PLACE", "0.004")),
+        maps_plateau_secs=float(os.environ.get("MAPS_PLATEAU_SECS", "75")),
+        maps_max_run_secs=float(os.environ.get("MAPS_MAX_RUN_SECS", "480")),
     )
 
 

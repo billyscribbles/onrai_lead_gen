@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { logout } from '../lib/api'
-import { sortLeads } from '../lib/leads'
-import { dateMs } from '../lib/format'
+import { loadLeads } from '../lib/leads'
 import type { Lead } from '../types'
-import {
-  FilterRail,
-  type Filters,
-  type StatusFilter,
-  type LeadBucket,
-} from './FilterRail'
+import { FilterRail, type Filters } from './FilterRail'
 import { StatStrip } from './StatStrip'
 import { LeadRow } from './LeadRow'
 import { LeadDrawer } from './LeadDrawer'
@@ -17,7 +11,7 @@ import { GenerateSection } from './GenerateSection'
 import { RunWidget } from './RunWidget'
 import { useActiveRun } from '../run/RunProvider'
 import { TableFilters } from './TableFilters'
-import { industryGroup, industryOptions } from '../lib/industry'
+import { Pager } from './Pager'
 
 const DEFAULT_FILTERS: Filters = {
   query: '',
@@ -29,28 +23,8 @@ const DEFAULT_FILTERS: Filters = {
   bucket: 'active',
 }
 
+const PAGE_SIZE = 50
 const AUTH_ERROR = 'Not authenticated'
-
-function matchesStatus(lead: Lead, status: StatusFilter): boolean {
-  if (status === 'all') return true
-  if (status === 'top') return lead.tier === 1
-  return lead.webStatus === status
-}
-
-function matchesBucket(lead: Lead, bucket: LeadBucket): boolean {
-  if (bucket === 'favourites') return lead.userStatus === 'favourite'
-  if (bucket === 'archived') return lead.userStatus === 'archived'
-  return lead.userStatus !== 'archived' // 'active': normal + favourite
-}
-
-function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
-  if (sort === 'hot') return sortLeads(leads)
-  // 'newest': latest generated lead first, tie-broken by heat so a batch
-  // generated in the same second still reads hottest-first.
-  return [...leads].sort(
-    (a, b) => dateMs(b.createdAt) - dateMs(a.createdAt) || b.heat - a.heat,
-  )
-}
 
 export function Dashboard({
   canLogout,
@@ -59,7 +33,10 @@ export function Dashboard({
   canLogout: boolean
   onSignedOut: () => void
 }) {
-  const { leads, loading, error, reload, setLeadStatus } = useLeads()
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
+  const [page, setPage] = useState(1)
+  const { leads, total, facets, loading, error, reload, setLeadStatus } =
+    useLeads(filters, page, PAGE_SIZE)
   const { run, dismiss: dismissRun } = useActiveRun()
   const reloadedFor = useRef<number | null>(null)
 
@@ -72,18 +49,25 @@ export function Dashboard({
     }
   }, [run, reload])
 
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
   const [view, setView] = useState<'leads' | 'generate' | 'new'>('leads')
 
   // The "New leads" view is tied to a finished run: it shows just that run's
-  // results. Available only while a done run is tracked (survives refresh via
-  // RunProvider; cleared when the run is dismissed or a new one starts).
+  // results, fetched directly (run_id filter, newest first). A single run targets
+  // at most a few hundred leads, so one large page covers it without a pager.
   const finishedRun = run && run.status === 'done' ? run : null
-  const runLeads = useMemo(
-    () => (finishedRun ? leads.filter((l) => l.runId === finishedRun.id) : []),
-    [leads, finishedRun],
-  )
+  const [runLeads, setRunLeads] = useState<Lead[]>([])
+  useEffect(() => {
+    if (!finishedRun) {
+      setRunLeads([])
+      return
+    }
+    let cancelled = false
+    loadLeads({ run_id: finishedRun.id, sort: 'newest', page_size: 500 })
+      .then(({ leads: next }) => { if (!cancelled) setRunLeads(next) })
+      .catch(() => { if (!cancelled) setRunLeads([]) })
+    return () => { cancelled = true }
+  }, [finishedRun])
 
   // If the New leads view is open but its run goes away (dismissed, or a new run
   // starts), fall back to the full lead sheet rather than showing a dead view.
@@ -103,45 +87,24 @@ export function Dashboard({
     logout().finally(onSignedOut)
   }, [dismissRun, onSignedOut])
 
-  const industries = useMemo(
-    () => industryOptions(leads.map((l) => l.category)),
-    [leads],
-  )
-
-  const suburbs = useMemo(
-    () => [...new Set(leads.map((l) => l.suburb).filter(Boolean))].sort(),
-    [leads],
-  )
-
+  // Filter chrome (counts, dropdowns) comes from the global facets, not the page.
   const counts = useMemo(
     () => ({
-      all: leads.length,
-      top: leads.filter((l) => l.tier === 1).length,
-      social_only: leads.filter((l) => l.webStatus === 'social_only').length,
-      none: leads.filter((l) => l.webStatus === 'none').length,
+      all: facets?.total ?? 0,
+      top: facets?.top ?? 0,
+      social_only: facets?.social_only ?? 0,
+      none: facets?.none ?? 0,
     }),
-    [leads],
+    [facets],
   )
+  const industries = facets?.industries ?? []
+  const suburbs = facets?.suburbs ?? []
 
-  const visible = useMemo(() => {
-    const q = filters.query.trim().toLowerCase()
-    const filtered = leads.filter((l) => {
-      if (!matchesBucket(l, filters.bucket)) return false
-      if (!matchesStatus(l, filters.status)) return false
-      if (filters.category && industryGroup(l.category) !== filters.category) return false
-      if (filters.suburb && l.suburb !== filters.suburb) return false
-      if (filters.phoneOnly && !l.hasPhone) return false
-      if (q) {
-        const hay = `${l.name} ${l.category} ${l.suburb}`.toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      return true
-    })
-    return applySort(filtered, filters.sort)
-  }, [leads, filters])
-
-  const update = (next: Partial<Filters>) =>
+  // Any filter change starts over at page 1.
+  const update = (next: Partial<Filters>) => {
     setFilters((f) => ({ ...f, ...next }))
+    setPage(1)
+  }
 
   return (
     <div className="app">
@@ -174,7 +137,7 @@ export function Dashboard({
                     ? 'Loading the dial sheet…'
                     : error
                       ? 'Could not load leads'
-                      : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
+                      : `${total} ${total === 1 ? 'lead' : 'leads'} ready to work`}
             </h1>
           </div>
         </header>
@@ -226,7 +189,7 @@ export function Dashboard({
                   <span>Generated</span>
                   <span className="sheet__head-act">Quick actions</span>
                 </div>
-                {applySort(runLeads, 'newest').map((lead, i) => (
+                {runLeads.map((lead, i) => (
                   <LeadRow
                     key={lead.id}
                     lead={lead}
@@ -240,8 +203,18 @@ export function Dashboard({
           </section>
         )}
 
-        {view === 'leads' && !loading && !error && (
-          <StatStrip leads={leads} filters={filters} onChange={update} />
+        {view === 'leads' && !loading && !error && facets && (
+          <StatStrip
+            metrics={{
+              total: facets.total,
+              top: facets.top,
+              social_only: facets.social_only,
+              none: facets.none,
+              reachable: facets.reachable,
+            }}
+            filters={filters}
+            onChange={update}
+          />
         )}
 
         {view === 'leads' && error && (
@@ -290,23 +263,27 @@ export function Dashboard({
               <span className="sheet__head-act">Quick actions</span>
             </div>
 
-            {visible.length === 0 ? (
+            {leads.length === 0 ? (
               <p className="sheet__empty">
                 No leads match these filters. Try widening the tier or clearing
                 the search.
               </p>
             ) : (
-              visible.map((lead, i) => (
+              leads.map((lead, i) => (
                 <LeadRow
                   key={lead.id}
                   lead={lead}
-                  rank={i + 1}
+                  rank={(page - 1) * PAGE_SIZE + i + 1}
                   onSelect={setActive}
                   onSetStatus={setLeadStatus}
                 />
               ))
             )}
           </section>
+        )}
+
+        {view === 'leads' && !loading && !error && (
+          <Pager page={page} pageSize={PAGE_SIZE} total={total} onPage={setPage} />
         )}
       </main>
 

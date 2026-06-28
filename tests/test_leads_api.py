@@ -67,3 +67,27 @@ def test_patch_lead_returns_404_for_missing_id(client):
     resp = c.patch("/api/leads/999999", json={"user_status": "favourite"})
 
     assert resp.status_code == 404
+
+
+def test_list_leads_status_top_excludes_non_tier1(client):
+    c, _ = client
+    resp = c.get("/api/leads", params={"status": "top"})
+    assert resp.status_code == 200
+    # The seeded lead is 'none' (tier 3), not tier 1.
+    assert resp.json()["total"] == 0
+
+
+def test_list_leads_pagination_shape(client):
+    c, _ = client
+    body = c.get("/api/leads", params={"page": 1, "page_size": 10}).json()
+    assert set(body) == {"items", "total", "page", "page_size"}
+    assert body["page"] == 1 and body["page_size"] == 10
+
+
+def test_facets_endpoint(client):
+    c, _ = client
+    body = c.get("/api/leads/facets", params={"engine": "no_website"}).json()
+    assert body["total"] == 1
+    assert body["none"] == 1
+    assert "Hospitality & Tourism" in body["industries"]   # seeded "Cafe"
+    assert body["suburbs"] == ["Footscray"]

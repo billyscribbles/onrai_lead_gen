@@ -18,12 +18,15 @@ export interface Run {
   engine: string
   status: 'awaiting_confirm' | 'running' | 'classifying' | 'done' | 'failed' | 'aborted' | 'imported'
   cost_estimate: number | null
+  cost_actual: number | null
   leads_found: number
   places_scraped: number
   progress: string | null
   error: string | null
   params: Record<string, unknown>
   created_at: string
+  started_at: string | null
+  finished_at: string | null
 }
 
 /** The good-lead criteria + scope the Generate section sends to the backend. */
@@ -53,6 +56,10 @@ export interface ApiLead {
   reviews_count: number | null
   google_maps_url: string
   place_id: string | null
+  /** ICP tier (1 = hottest) computed server-side; null for legacy rows. */
+  tier: number | null
+  /** 0–100 signal/heat computed server-side; null for legacy rows. */
+  heat: number | null
   extra: Record<string, string>
   user_status: string
   /** The run that produced this lead (null for legacy/CSV-ingested rows). */
@@ -85,10 +92,58 @@ const post = (path: string, body: unknown): Promise<Response> =>
     body: JSON.stringify(body),
   })
 
-export function fetchLeads(): Promise<{ items: ApiLead[]; total: number }> {
-  return fetch('/api/leads?page_size=500&sort=reviews_count', {
+/** Filters/paging accepted by GET /api/leads. Empty values are omitted. */
+export interface LeadQuery {
+  page?: number
+  page_size?: number
+  sort?: 'hot' | 'newest'
+  status?: string
+  bucket?: string
+  industry?: string
+  suburb?: string
+  q?: string
+  phone_only?: boolean
+  run_id?: number
+}
+
+/** Global pool stats from GET /api/leads/facets. */
+export interface Facets {
+  total: number
+  top: number
+  social_only: number
+  none: number
+  reachable: number
+  industries: string[]
+  suburbs: string[]
+}
+
+function leadQueryString(params: LeadQuery): string {
+  const sp = new URLSearchParams({ engine: ENGINE })
+  if (params.page) sp.set('page', String(params.page))
+  if (params.page_size) sp.set('page_size', String(params.page_size))
+  if (params.sort) sp.set('sort', params.sort)
+  if (params.status && params.status !== 'all') sp.set('status', params.status)
+  if (params.bucket) sp.set('bucket', params.bucket)
+  if (params.industry) sp.set('industry', params.industry)
+  if (params.suburb) sp.set('suburb', params.suburb)
+  if (params.q?.trim()) sp.set('q', params.q.trim())
+  if (params.phone_only) sp.set('phone_only', 'true')
+  if (params.run_id != null) sp.set('run_id', String(params.run_id))
+  return sp.toString()
+}
+
+export function fetchLeads(
+  params: LeadQuery,
+): Promise<{ items: ApiLead[]; total: number; page: number; page_size: number }> {
+  return fetch(`/api/leads?${leadQueryString(params)}`, {
     credentials: 'include',
-  }).then(json<{ items: ApiLead[]; total: number }>)
+  }).then(json<{ items: ApiLead[]; total: number; page: number; page_size: number }>)
+}
+
+export function fetchFacets(): Promise<Facets> {
+  return fetch(`/api/leads/facets?engine=${ENGINE}`, {
+    credentials: 'include',
+  }).then(json<Facets>)
 }
 
 export function patchLeadStatus(

@@ -11,8 +11,9 @@ from app.db import connect
 
 router = APIRouter(prefix="/api/leads", tags=["leads"], dependencies=[Depends(require_auth)])
 
-_CSV_COLS = ["business_name", "category", "web_status", "rating", "reviews_count",
-             "phone", "website", "suburb", "address", "google_maps_url", "created_at"]
+_CSV_COLS = ["business_name", "category", "web_status", "tier", "heat", "rating",
+             "reviews_count", "phone", "website", "suburb", "address",
+             "google_maps_url", "created_at"]
 
 
 def get_conn():
@@ -23,18 +24,25 @@ def get_conn():
         conn.close()
 
 
-def _filters(engine, category, web_status, suburb, q, sort):
-    return dict(engine=engine, category=category, web_status=web_status,
-                suburb=suburb, q=q, sort=sort)
+def _filters(engine, status, category, web_status, industry, suburb, q,
+             bucket, phone_only, run_id, sort):
+    return dict(engine=engine, status=status, category=category,
+                web_status=web_status, industry=industry, suburb=suburb, q=q,
+                bucket=bucket, phone_only=phone_only, run_id=run_id, sort=sort)
 
 
 @router.get("")
 def list_leads(conn=Depends(get_conn), engine: str | None = None,
-               category: str | None = None, web_status: str | None = None,
+               status: str | None = None, category: str | None = None,
+               web_status: str | None = None, industry: str | None = None,
                suburb: str | None = None, q: str | None = None,
-               sort: str = "reviews_count", page: int = 1, page_size: int = 50):
-    return store.query_leads(conn, **_filters(engine, category, web_status, suburb, q, sort),
-                             page=page, page_size=page_size)
+               bucket: str | None = None, phone_only: bool = False,
+               run_id: int | None = None, sort: str = "tier",
+               page: int = 1, page_size: int = 50):
+    return store.query_leads(
+        conn, **_filters(engine, status, category, web_status, industry, suburb,
+                         q, bucket, phone_only, run_id, sort),
+        page=page, page_size=page_size)
 
 
 @router.get("/stats")
@@ -42,13 +50,22 @@ def stats(conn=Depends(get_conn)):
     return store.lead_stats(conn)
 
 
+@router.get("/facets")
+def facets(conn=Depends(get_conn), engine: str | None = None):
+    return store.lead_facets(conn, engine)
+
+
 @router.get("/export.csv")
 def export_csv(conn=Depends(get_conn), engine: str | None = None,
-               category: str | None = None, web_status: str | None = None,
+               status: str | None = None, category: str | None = None,
+               web_status: str | None = None, industry: str | None = None,
                suburb: str | None = None, q: str | None = None,
-               sort: str = "reviews_count"):
-    res = store.query_leads(conn, **_filters(engine, category, web_status, suburb, q, sort),
-                            page=1, page_size=200)
+               bucket: str | None = None, phone_only: bool = False,
+               run_id: int | None = None, sort: str = "tier"):
+    res = store.query_leads(
+        conn, **_filters(engine, status, category, web_status, industry, suburb,
+                         q, bucket, phone_only, run_id, sort),
+        page=1, page_size=200)
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=_CSV_COLS, extrasaction="ignore")
     writer.writeheader()

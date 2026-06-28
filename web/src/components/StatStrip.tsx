@@ -1,12 +1,12 @@
-import type { Lead } from '../types'
 import type { Filters, StatusFilter } from './FilterRail'
 
-function metrics(leads: Lead[]) {
-  const topTier = leads.filter((l) => l.tier === 1).length
-  const noWeb = leads.filter((l) => l.webStatus === 'none').length
-  const social = leads.filter((l) => l.webStatus === 'social_only').length
-  const reachable = leads.filter((l) => l.hasPhone || l.social).length
-  return { total: leads.length, topTier, noWeb, social, reachable }
+/** Global pool metrics (from the backend facets), not the current page. */
+export interface StatMetrics {
+  total: number
+  top: number
+  social_only: number
+  none: number
+  reachable: number
 }
 
 type StatItem = {
@@ -21,26 +21,25 @@ type StatItem = {
 }
 
 export function StatStrip({
-  leads,
+  metrics: m,
   filters,
   onChange,
 }: {
-  leads: Lead[]
+  metrics: StatMetrics
   filters: Filters
   onChange: (next: Partial<Filters>) => void
 }) {
-  const m = metrics(leads)
   const items: StatItem[] = [
     { label: 'Live leads', value: String(m.total), tone: 'ink', status: 'all' },
     {
       label: 'Top tier',
-      value: String(m.topTier),
+      value: String(m.top),
       tone: 'signal',
       hint: 'social + phone',
       status: 'top',
     },
-    { label: 'Social only', value: String(m.social), tone: 'teal', status: 'social_only' },
-    { label: 'No website', value: String(m.noWeb), tone: 'ink', status: 'none' },
+    { label: 'Social only', value: String(m.social_only), tone: 'teal', status: 'social_only' },
+    { label: 'No website', value: String(m.none), tone: 'ink', status: 'none' },
     { label: 'Reachable now', value: String(m.reachable), tone: 'ink', toggle: 'phoneOnly' },
   ]
 

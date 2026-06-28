@@ -12,6 +12,7 @@ import { LeadRow } from './components/LeadRow'
 import { LeadDrawer } from './components/LeadDrawer'
 import { GenerateSection } from './components/GenerateSection'
 import { TableFilters } from './components/TableFilters'
+import { industryGroup, industryOptions } from './lib/industry'
 
 const DEFAULT_FILTERS: Filters = {
   query: '',
@@ -43,8 +44,8 @@ export default function App() {
   const [active, setActive] = useState<Lead | null>(null)
   const [view, setView] = useState<'leads' | 'generate'>('leads')
 
-  const categories = useMemo(
-    () => [...new Set(leads.map((l) => l.category).filter(Boolean))].sort(),
+  const industries = useMemo(
+    () => industryOptions(leads.map((l) => l.category)),
     [leads],
   )
 
@@ -67,7 +68,7 @@ export default function App() {
     const q = filters.query.trim().toLowerCase()
     const filtered = leads.filter((l) => {
       if (!matchesStatus(l, filters.status)) return false
-      if (filters.category && l.category !== filters.category) return false
+      if (filters.category && industryGroup(l.category) !== filters.category) return false
       if (filters.suburb && l.suburb !== filters.suburb) return false
       if (filters.phoneOnly && !l.hasPhone) return false
       if (q) {
@@ -141,7 +142,7 @@ export default function App() {
         {view === 'leads' && !loading && !error && (
           <TableFilters
             filters={filters}
-            categories={categories}
+            industries={industries}
             suburbs={suburbs}
             onChange={update}
           />

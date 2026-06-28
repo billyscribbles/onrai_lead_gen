@@ -2,13 +2,13 @@ import type { Filters } from './FilterRail'
 
 interface Props {
   filters: Filters
-  categories: string[]
+  industries: string[]
   suburbs: string[]
   onChange: (next: Partial<Filters>) => void
 }
 
 /** Horizontal Industry + Suburb filter row sitting directly above the lead sheet. */
-export function TableFilters({ filters, categories, suburbs, onChange }: Props) {
+export function TableFilters({ filters, industries, suburbs, onChange }: Props) {
   const active = filters.category || filters.suburb
 
   return (
@@ -22,7 +22,7 @@ export function TableFilters({ filters, categories, suburbs, onChange }: Props) 
             aria-label="Filter by industry"
           >
             <option value="">All industries</option>
-            {categories.map((c) => (
+            {industries.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

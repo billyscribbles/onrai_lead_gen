@@ -56,3 +56,29 @@ def get_run(run_id: int, conn=Depends(get_conn)):
     if not run:
         raise HTTPException(404, "No such run")
     return run
+
+
+_TERMINAL = {"done", "failed", "aborted"}
+
+
+@router.post("/{run_id}/abort")
+def abort_run(run_id: int, conn=Depends(get_conn)):
+    run = store.get_run(conn, run_id)
+    if not run:
+        raise HTTPException(404, "No such run")
+    if run["status"] in _TERMINAL:
+        return run  # idempotent: nothing to stop
+
+    worker.request_abort(run_id)
+
+    apify_run_id = run.get("apify_run_id")
+    if apify_run_id:
+        try:
+            from app.apify import make_client
+            make_client().run(apify_run_id).abort()
+        except Exception:  # noqa: BLE001 — best-effort; DB state is the source of truth
+            pass
+
+    now = conn.execute("SELECT datetime('now') t").fetchone()["t"]
+    store.update_run(conn, run_id, status="aborted", finished_at=now)
+    return store.get_run(conn, run_id)

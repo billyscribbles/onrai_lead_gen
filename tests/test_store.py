@@ -157,6 +157,23 @@ def test_set_lead_status_returns_none_for_missing_lead(tmp_path):
     assert store.set_lead_status(conn, 999, "favourite") is None
 
 
+# --- query_leads page_size cap ----------------------------------------------
+
+
+def test_query_leads_page_size_500_not_clamped(tmp_path):
+    """page_size=500 should be accepted as-is (not clamped down to 200)."""
+    conn = _db(tmp_path)
+    result = store.query_leads(conn, page_size=500)
+    assert result["page_size"] == 500
+
+
+def test_query_leads_page_size_9999_clamps_to_500(tmp_path):
+    """page_size beyond 500 should clamp to 500."""
+    conn = _db(tmp_path)
+    result = store.query_leads(conn, page_size=9999)
+    assert result["page_size"] == 500
+
+
 def test_upsert_preserves_user_status(tmp_path):
     # Re-scraping the same business must NOT wipe a star/archive.
     conn = _db(tmp_path)

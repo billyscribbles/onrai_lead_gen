@@ -152,7 +152,7 @@ def query_leads(conn, *, engine=None, category=None, web_status=None,
     order = f"ORDER BY {sort_col} IS NULL, {sort_col} DESC" \
         if sort_col != "business_name" else "ORDER BY business_name ASC"
     total = conn.execute(f"SELECT COUNT(*) c FROM leads {clause}", args).fetchone()["c"]
-    page = max(1, int(page)); page_size = max(1, min(int(page_size), 200))
+    page = max(1, int(page)); page_size = max(1, min(int(page_size), 500))
     rows = conn.execute(
         f"SELECT * FROM leads {clause} {order} LIMIT ? OFFSET ?",
         (*args, page_size, (page - 1) * page_size)).fetchall()

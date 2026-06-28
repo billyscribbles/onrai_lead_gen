@@ -3,6 +3,7 @@
  * and in production FastAPI serves this SPA from the same origin, so all
  * calls are same-origin and credentials ride along for the session cookie.
  */
+import type { UserStatus } from '../types'
 
 export interface Estimate {
   places: number
@@ -53,6 +54,7 @@ export interface ApiLead {
   google_maps_url: string
   place_id: string | null
   extra: Record<string, string>
+  user_status: string
 }
 
 const ENGINE = 'no_website'
@@ -83,6 +85,18 @@ export function fetchLeads(): Promise<{ items: ApiLead[]; total: number }> {
   return fetch('/api/leads?page_size=500&sort=reviews_count', {
     credentials: 'include',
   }).then(json<{ items: ApiLead[]; total: number }>)
+}
+
+export function patchLeadStatus(
+  id: number,
+  status: UserStatus,
+): Promise<ApiLead> {
+  return fetch(`/api/leads/${id}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user_status: status }),
+  }).then(json<ApiLead>)
 }
 
 export function estimateRun(params: GenParams): Promise<Estimate> {

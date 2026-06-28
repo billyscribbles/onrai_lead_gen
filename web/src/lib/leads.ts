@@ -1,5 +1,5 @@
 import { fetchLeads, type ApiLead } from './api'
-import type { Lead, RawLead, SocialPlatform } from '../types'
+import type { Lead, RawLead, SocialPlatform, UserStatus } from '../types'
 
 /**
  * Tier ranking encodes the ICP from CLAUDE.md:
@@ -46,7 +46,12 @@ function heatFor(tier: Lead['tier'], reviews: number, hasPhone: boolean): number
   return Math.round(Math.min(100, tierBase + traction + reach))
 }
 
-function toLead(raw: Record<string, string>, index: number): Lead {
+function toLead(
+  raw: Record<string, string>,
+  index: number,
+  dbId: number,
+  userStatus: UserStatus,
+): Lead {
   const r = raw as unknown as RawLead
   const hasPhone = Boolean(r.phone && r.phone.trim())
   const reviews = parseInt(r.reviews_count || '0', 10) || 0
@@ -55,6 +60,8 @@ function toLead(raw: Record<string, string>, index: number): Lead {
 
   return {
     id: `${r.business_name}-${index}`,
+    dbId,
+    userStatus,
     name: r.business_name,
     category: r.category,
     webStatus: r.web_status,
@@ -96,8 +103,14 @@ function apiLeadToRaw(item: ApiLead): Record<string, string> {
 /** Fetch from the backend API + classify, sorted hottest-first. */
 export async function loadLeads(): Promise<Lead[]> {
   const { items } = await fetchLeads()
-  const leads = items.map((item, i) => toLead(apiLeadToRaw(item), i))
+  const leads = items.map((item, i) =>
+    toLead(apiLeadToRaw(item), i, item.id, normalizeStatus(item.user_status)),
+  )
   return sortLeads(leads)
+}
+
+function normalizeStatus(s: string | undefined): UserStatus {
+  return s === 'favourite' || s === 'archived' ? s : 'normal'
 }
 
 /** Default ordering: tier, then traction (reviews), then rating. */

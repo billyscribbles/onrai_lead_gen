@@ -23,6 +23,7 @@ const INDUSTRY_GROUPS: { label: string; items: string[] }[] = [
   { label: 'Auto', items: ['mechanic', 'car detailing', 'auto electrician', 'tyre shop'] },
   { label: 'Retail & wholesale', items: ['clothing store', 'boutique', 'wholesaler', 'homewares'] },
   { label: 'Health & fitness', items: ['dentist', 'physio', 'gym', 'chiropractor', 'massage'] },
+  { label: 'Professional services', items: ['real estate agent', 'accountant', 'lawyer', 'mortgage broker', 'marketing agency'] },
 ]
 
 /**

@@ -1,8 +1,9 @@
 import csv
 import io
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app import store
 from app.auth import require_auth
@@ -56,3 +57,18 @@ def export_csv(conn=Depends(get_conn), engine: str | None = None,
     buf.seek(0)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=leads.csv"})
+
+
+class StatusUpdate(BaseModel):
+    user_status: str
+
+
+@router.patch("/{lead_id}")
+def update_lead_status(lead_id: int, body: StatusUpdate, conn=Depends(get_conn)):
+    try:
+        lead = store.set_lead_status(conn, lead_id, body.user_status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid user_status")
+    if lead is None:
+        raise HTTPException(status_code=404, detail="lead not found")
+    return lead

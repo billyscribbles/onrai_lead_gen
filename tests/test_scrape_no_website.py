@@ -150,6 +150,46 @@ def test_run_maps_lookup_starts_polls_and_returns_items():
     assert places == [{"placeId": "p1"}]
 
 
+def test_run_maps_lookup_reports_live_listing_count(monkeypatch):
+    """on_count receives the dataset's growing item count while polling."""
+    import scrape_no_website
+    monkeypatch.setattr(scrape_no_website.time, "sleep", lambda *_: None)
+    counts = []
+
+    class _RunsThenDone:
+        def __init__(self):
+            self._calls = 0
+
+        def get(self):
+            self._calls += 1
+            status = "RUNNING" if self._calls == 1 else "SUCCEEDED"
+            return {"status": status, "id": "R1", "defaultDatasetId": "DS1"}
+
+        def abort(self):
+            raise AssertionError("happy path must not abort")
+
+    class _Client:
+        def actor(self, name):
+            return _FakeActor({"id": "R1", "defaultDatasetId": "DS1"})
+
+        def run(self, run_id):
+            return _RunsThenDone()
+
+        def dataset(self, ds_id):
+            class _DS:
+                def get(self):
+                    return {"itemCount": 7}
+
+                def iterate_items(self):
+                    return iter([{"placeId": "p1"}])
+            return _DS()
+
+    places = run_maps_lookup(_Client(), ["cafe VIC"], 5, "au", 200,
+                             on_count=counts.append)
+    assert counts == [7]            # one tick while RUNNING, before completion
+    assert places == [{"placeId": "p1"}]
+
+
 def test_run_maps_lookup_aborts_apify_run_when_requested():
     aborted = []
 

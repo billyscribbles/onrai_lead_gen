@@ -1,5 +1,5 @@
 import type { Lead, UserStatus } from '../types'
-import { compact, heatLevel, platformLabel } from '../lib/format'
+import { compact, formatDate, formatDateTime, heatLevel, platformLabel } from '../lib/format'
 import { Phone, Search, SocialIcon, Star } from './Icons'
 
 interface Props {
@@ -70,6 +70,10 @@ export function LeadRow({ lead, rank, onSelect, onSetStatus }: Props) {
         </span>
         <span className="row__heat-num">{lead.heat}</span>
       </div>
+
+      <span className="row__date" title={formatDateTime(lead.createdAt)}>
+        {formatDate(lead.createdAt)}
+      </span>
 
       <div className="row__actions" onClick={(e) => e.stopPropagation()}>
         <button

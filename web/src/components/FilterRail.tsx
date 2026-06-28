@@ -1,8 +1,8 @@
-import { LogOut, Plus, Rows, Signal } from './Icons'
+import { LogOut, Plus, Rows, Signal, Star } from './Icons'
 
-export type View = 'leads' | 'generate'
+export type View = 'leads' | 'generate' | 'new'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
-export type SortKey = 'hot' | 'reviews' | 'rating' | 'name'
+export type SortKey = 'hot' | 'newest'
 export type LeadBucket = 'active' | 'favourites' | 'archived'
 
 export interface Filters {
@@ -24,9 +24,7 @@ const STATUS: { key: StatusFilter; label: string }[] = [
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'hot', label: 'Hottest first' },
-  { key: 'reviews', label: 'Most reviews' },
-  { key: 'rating', label: 'Highest rated' },
-  { key: 'name', label: 'A–Z' },
+  { key: 'newest', label: 'Newest first' },
 ]
 
 interface Props {
@@ -35,6 +33,8 @@ interface Props {
   onChange: (next: Partial<Filters>) => void
   view: View
   onNavigate: (view: View) => void
+  /** When a finished run is tracked, show the "New leads" item with this count. */
+  newLeads?: { count: number }
   /** When set (a password is configured), render a sign-out button. */
   onLogout?: () => void
 }
@@ -45,6 +45,7 @@ export function FilterRail({
   onChange,
   view,
   onNavigate,
+  newLeads,
   onLogout,
 }: Props) {
   return (
@@ -68,6 +69,17 @@ export function FilterRail({
         >
           <span className="rail__item-lbl"><Rows /> Lead sheet</span>
         </button>
+        {newLeads && (
+          <button
+            type="button"
+            className={`rail__item rail__item--new ${view === 'new' ? 'is-active' : ''}`}
+            onClick={() => onNavigate('new')}
+            aria-pressed={view === 'new'}
+          >
+            <span className="rail__item-lbl"><Star /> New leads</span>
+            <span className="rail__count rail__count--new">{newLeads.count}</span>
+          </button>
+        )}
         <button
           type="button"
           className={`rail__item rail__item--cta ${view === 'generate' ? 'is-active' : ''}`}
@@ -83,6 +95,11 @@ export function FilterRail({
           Set an industry, lead count and the criteria that make a good
           prospect, then generate. New leads are saved and appear on the{' '}
           <strong>lead sheet</strong>.
+        </p>
+      ) : view === 'new' ? (
+        <p className="rail__foot">
+          The fresh results from your latest run. They're also saved to the{' '}
+          <strong>lead sheet</strong> alongside everything else.
         </p>
       ) : (
         <>

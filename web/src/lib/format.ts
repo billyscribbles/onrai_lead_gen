@@ -35,3 +35,37 @@ export function heatLevel(heat: number): 'hot' | 'warm' | 'cool' {
   if (heat >= 56) return 'warm'
   return 'cool'
 }
+
+/**
+ * Parse a backend `created_at`. SQLite's `datetime('now')` yields
+ * "YYYY-MM-DD HH:MM:SS" in UTC with no zone marker, so we normalise to ISO and
+ * tag it as UTC before handing it to Date.
+ */
+function parseDate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const iso = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Short "generated on" date for the lead sheet: "29 Jun" (or "29 Jun 25"). */
+export function formatDate(value: string | null | undefined): string {
+  const d = parseDate(value)
+  if (!d) return '—'
+  const day = d.getDate()
+  const mon = d.toLocaleString('en-AU', { month: 'short' })
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return sameYear ? `${day} ${mon}` : `${day} ${mon} ${String(d.getFullYear()).slice(2)}`
+}
+
+/** Full local timestamp for the column's hover title. */
+export function formatDateTime(value: string | null | undefined): string {
+  const d = parseDate(value)
+  return d ? d.toLocaleString('en-AU') : ''
+}
+
+/** Sortable epoch ms (0 when missing) so "newest first" is a plain numeric sort. */
+export function dateMs(value: string | null | undefined): number {
+  const d = parseDate(value)
+  return d ? d.getTime() : 0
+}

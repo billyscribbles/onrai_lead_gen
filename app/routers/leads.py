@@ -12,7 +12,7 @@ from app.db import connect
 router = APIRouter(prefix="/api/leads", tags=["leads"], dependencies=[Depends(require_auth)])
 
 _CSV_COLS = ["business_name", "category", "web_status", "rating", "reviews_count",
-             "phone", "website", "suburb", "address", "google_maps_url"]
+             "phone", "website", "suburb", "address", "google_maps_url", "created_at"]
 
 
 def get_conn():

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLeads } from '../hooks/useLeads'
 import { logout } from '../lib/api'
 import { sortLeads } from '../lib/leads'
+import { dateMs } from '../lib/format'
 import type { Lead } from '../types'
 import {
   FilterRail,
@@ -44,11 +45,11 @@ function matchesBucket(lead: Lead, bucket: LeadBucket): boolean {
 
 function applySort(leads: Lead[], sort: Filters['sort']): Lead[] {
   if (sort === 'hot') return sortLeads(leads)
-  const copy = [...leads]
-  if (sort === 'reviews') return copy.sort((a, b) => b.reviews - a.reviews)
-  if (sort === 'rating')
-    return copy.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews)
-  return copy.sort((a, b) => a.name.localeCompare(b.name))
+  // 'newest': latest generated lead first, tie-broken by heat so a batch
+  // generated in the same second still reads hottest-first.
+  return [...leads].sort(
+    (a, b) => dateMs(b.createdAt) - dateMs(a.createdAt) || b.heat - a.heat,
+  )
 }
 
 export function Dashboard({
@@ -73,7 +74,22 @@ export function Dashboard({
 
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS)
   const [active, setActive] = useState<Lead | null>(null)
-  const [view, setView] = useState<'leads' | 'generate'>('leads')
+  const [view, setView] = useState<'leads' | 'generate' | 'new'>('leads')
+
+  // The "New leads" view is tied to a finished run: it shows just that run's
+  // results. Available only while a done run is tracked (survives refresh via
+  // RunProvider; cleared when the run is dismissed or a new one starts).
+  const finishedRun = run && run.status === 'done' ? run : null
+  const runLeads = useMemo(
+    () => (finishedRun ? leads.filter((l) => l.runId === finishedRun.id) : []),
+    [leads, finishedRun],
+  )
+
+  // If the New leads view is open but its run goes away (dismissed, or a new run
+  // starts), fall back to the full lead sheet rather than showing a dead view.
+  useEffect(() => {
+    if (view === 'new' && !finishedRun) setView('leads')
+  }, [view, finishedRun])
 
   // A lapsed session surfaces as a 401 "Not authenticated" — bounce to login.
   useEffect(() => {
@@ -135,6 +151,7 @@ export function Dashboard({
         onChange={update}
         view={view}
         onNavigate={setView}
+        newLeads={finishedRun ? { count: runLeads.length } : undefined}
         onLogout={canLogout ? handleLogout : undefined}
       />
 
@@ -144,24 +161,83 @@ export function Dashboard({
             <p className="desk__eyebrow">
               {view === 'generate'
                 ? 'Onrai Studio · lead finder'
-                : 'Onrai Studio · no-website prospects'}
+                : view === 'new'
+                  ? 'Onrai Studio · just generated'
+                  : 'Onrai Studio · no-website prospects'}
             </p>
             <h1 className="desk__title">
               {view === 'generate'
                 ? 'Generate new leads'
-                : loading
-                  ? 'Loading the dial sheet…'
-                  : error
-                    ? 'Could not load leads'
-                    : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
+                : view === 'new'
+                  ? `${runLeads.length} new ${runLeads.length === 1 ? 'lead' : 'leads'} from this run`
+                  : loading
+                    ? 'Loading the dial sheet…'
+                    : error
+                      ? 'Could not load leads'
+                      : `${visible.length} ${visible.length === 1 ? 'lead' : 'leads'} ready to work`}
             </h1>
           </div>
         </header>
 
         {view === 'generate' && (
           <GenerateSection
-            onViewLeads={() => setView('leads')}
+            onViewLeads={() => setView('new')}
           />
+        )}
+
+        {view === 'new' && (
+          <section className="newleads">
+            <div className="newleads__bar">
+              <p className="newleads__sub">
+                Fresh from your latest run — already saved to the lead sheet.
+              </p>
+              <div className="newleads__actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setView('generate')}
+                >
+                  Generate more
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setView('leads')}
+                >
+                  Go to all leads →
+                </button>
+              </div>
+            </div>
+
+            {runLeads.length === 0 ? (
+              <p className="sheet__empty">
+                This run didn't find any leads. Try widening the criteria or a
+                different suburb, then generate again.
+              </p>
+            ) : (
+              <section className="sheet" aria-label="New leads">
+                <div className="sheet__head">
+                  <span>#</span>
+                  <span>Business</span>
+                  <span>Tier</span>
+                  <span>Traction</span>
+                  <span>Reach</span>
+                  <span>Heat</span>
+                  <span>Generated</span>
+                  <span className="sheet__head-act">Quick actions</span>
+                </div>
+                {applySort(runLeads, 'newest').map((lead, i) => (
+                  <LeadRow
+                    key={lead.id}
+                    lead={lead}
+                    rank={i + 1}
+                    onSelect={setActive}
+                    onSetStatus={setLeadStatus}
+                  />
+                ))}
+              </section>
+            )}
+          </section>
         )}
 
         {view === 'leads' && !loading && !error && (
@@ -210,6 +286,7 @@ export function Dashboard({
               <span>Traction</span>
               <span>Reach</span>
               <span>Heat</span>
+              <span>Generated</span>
               <span className="sheet__head-act">Quick actions</span>
             </div>
 

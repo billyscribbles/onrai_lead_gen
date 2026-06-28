@@ -62,11 +62,13 @@ _POLL_INTERVAL = 2.0  # seconds between Apify run status polls
 _TERMINAL_RUN_STATUSES = {"SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"}
 
 
-def _wait_for_run(client, run_id, should_abort=None):
+def _wait_for_run(client, run_id, should_abort=None, on_tick=None):
     """Block until an Apify run finishes; abort it if should_abort() turns true.
 
     Returns the terminal run dict. Raises RunAborted after asking Apify to abort
-    the run, so the caller never pays for or reads a half-finished scrape."""
+    the run, so the caller never pays for or reads a half-finished scrape.
+    ``on_tick`` is called on each poll while the run is still going, so callers
+    can surface live progress (e.g. listings scraped so far)."""
     run_client = client.run(run_id)
     while True:
         if should_abort is not None and should_abort():
@@ -75,7 +77,17 @@ def _wait_for_run(client, run_id, should_abort=None):
         run = run_client.get()
         if run.get("status") in _TERMINAL_RUN_STATUSES:
             return run
+        if on_tick is not None:
+            on_tick()
         time.sleep(_POLL_INTERVAL)
+
+
+def _dataset_count(client, dataset_id):
+    """Best-effort live item count for an in-flight dataset; 0 if unavailable."""
+    try:
+        return (client.dataset(dataset_id).get() or {}).get("itemCount", 0) or 0
+    except Exception:  # noqa: BLE001 — progress is cosmetic; never fail the run
+        return 0
 
 
 def _check_run_dict(run, label):
@@ -161,12 +173,14 @@ def build_search_strings(categories, suburbs, max_searches, skip_pairs=None):
 
 
 def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
-                    should_abort=None, on_run_start=None):
+                    should_abort=None, on_run_start=None, on_count=None):
     """Look up every search string on Google Maps; return all place items.
 
     Uses .start()+poll (not the blocking .call()) so a caller can force-abort
     the in-flight Apify run via ``should_abort``. ``on_run_start`` receives each
-    Apify run id as soon as it is known, so callers can persist it for abort."""
+    Apify run id as soon as it is known, so callers can persist it for abort.
+    ``on_count`` receives the running tally of listings scraped so far (across
+    chunks), so callers can show live progress during the slow scrape."""
     places = []
     for start in range(0, len(search_strings), chunk_size):
         chunk = search_strings[start:start + chunk_size]
@@ -181,9 +195,15 @@ def run_maps_lookup(client, search_strings, per_search, country, chunk_size,
               f"<= {per_search} places each...")
         started = client.actor(MAPS_ACTOR).start(run_input=run_input)
         run_id = started["id"]
+        ds_id = started.get("defaultDatasetId")
         if on_run_start is not None:
             on_run_start(run_id)
-        run = _wait_for_run(client, run_id, should_abort)
+        # Poll the dataset's live item count so the bar climbs while we wait.
+        done_so_far = len(places)
+        tick = None
+        if on_count is not None and ds_id:
+            tick = lambda: on_count(done_so_far + _dataset_count(client, ds_id))
+        run = _wait_for_run(client, run_id, should_abort, on_tick=tick)
         _check_run_dict(run, "Google Maps lookup")
         dataset_id = run["defaultDatasetId"]
         items = list(client.dataset(dataset_id).iterate_items())
@@ -252,10 +272,10 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
     they are excluded from the grid so Apify is never paid to re-crawl them. After
     a successful sweep ``on_searched`` is called with the pairs actually crawled,
     so the caller can record them as covered."""
-    def _emit(stage, message, places=0):
+    def _emit(stage, message, places=0, found=0):
         if on_progress:
             on_progress({"stage": stage, "message": message,
-                         "places_scraped": places})
+                         "places_scraped": places, "leads_found": found})
 
     def _check_abort():
         if should_abort is not None and should_abort():
@@ -273,20 +293,24 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
             return []
         searches = [f"{category} {suburb} VIC" for category, suburb in pairs]
         _emit("maps", f"Sweeping {len(searches)} new searches")
-        raw_places = run_maps_lookup(client, searches, per_search, country,
-                                     chunk_size, should_abort=should_abort,
-                                     on_run_start=on_run_start)
+        raw_places = run_maps_lookup(
+            client, searches, per_search, country, chunk_size,
+            should_abort=should_abort, on_run_start=on_run_start,
+            on_count=lambda n: _emit("maps", f"Scanning Google Maps — {n} listings", n))
         if on_searched:
             on_searched(pairs)
 
     _check_abort()
     places = web_presence.dedupe_by_place_id(raw_places)
     places.sort(key=lambda p: p.get("reviewsCount") or 0, reverse=True)
-    _emit("classify", f"{len(places)} unique listings", len(places))
+    total = len(places)
+    # ``places`` is the denominator the UI shows as "found X / Y": keep it fixed
+    # through the classify pass while the found tally climbs.
+    _emit("classify", f"Found 0 / {total}", total)
 
     rows = []
-    fetch_budget = limit if limit is not None else len(places)
-    for place in places:
+    fetch_budget = limit if limit is not None else total
+    for i, place in enumerate(places, 1):
         _check_abort()
         if not web_presence.is_real_listing(place, min_reviews):
             continue
@@ -298,8 +322,9 @@ def collect_leads(client, *, categories, suburbs, per_search, max_searches,
         row = web_presence.no_website_row(place, status)
         row["place_id"] = place.get("placeId")
         rows.append(row)
+        _emit("classify", f"Found {len(rows)} / {total}", total, len(rows))
     rows.sort(key=lambda r: r["reviews_count"] or 0, reverse=True)
-    _emit("done", f"{len(rows)} leads", len(places))
+    _emit("done", f"Found {len(rows)} / {total}", total, len(rows))
     return rows
 
 

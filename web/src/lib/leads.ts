@@ -51,6 +51,8 @@ function toLead(
   index: number,
   dbId: number,
   userStatus: UserStatus,
+  createdAt: string,
+  runId: number | null,
 ): Lead {
   const r = raw as unknown as RawLead
   const hasPhone = Boolean(r.phone && r.phone.trim())
@@ -74,6 +76,8 @@ function toLead(
     address: r.address || '',
     mapsUrl: r.google_maps_url || '',
     searchUrl: r.google_search_url || '',
+    createdAt,
+    runId,
     hasPhone,
     social: socialOf(r.website),
     tier,
@@ -104,7 +108,7 @@ function apiLeadToRaw(item: ApiLead): Record<string, string> {
 export async function loadLeads(): Promise<Lead[]> {
   const { items } = await fetchLeads()
   const leads = items.map((item, i) =>
-    toLead(apiLeadToRaw(item), i, item.id, normalizeStatus(item.user_status)),
+    toLead(apiLeadToRaw(item), i, item.id, normalizeStatus(item.user_status), item.created_at, item.run_id ?? null),
   )
   return sortLeads(leads)
 }

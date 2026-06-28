@@ -43,6 +43,10 @@ export interface Lead {
   address: string
   mapsUrl: string
   searchUrl: string
+  /** The run that produced this lead (null for legacy/CSV-ingested rows). */
+  runId: number | null
+  /** When the lead was generated/saved (backend created_at, UTC string). */
+  createdAt: string
 
   hasPhone: boolean
   social: SocialPlatform | null

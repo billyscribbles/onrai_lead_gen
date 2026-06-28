@@ -55,6 +55,8 @@ export interface ApiLead {
   place_id: string | null
   extra: Record<string, string>
   user_status: string
+  /** The run that produced this lead (null for legacy/CSV-ingested rows). */
+  run_id: number | null
   /** When this lead was first saved (SQLite UTC "YYYY-MM-DD HH:MM:SS"). */
   created_at: string
 }

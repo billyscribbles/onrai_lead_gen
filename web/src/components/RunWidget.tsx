@@ -3,7 +3,7 @@ import { useActiveRun } from '../run/RunProvider'
 import { progressFor, runPhase } from '../run/progress'
 import { ConfirmDialog } from './ConfirmDialog'
 
-/** How long the green success bar lingers before it dismisses itself. */
+/** How long the green success bar lingers before it hides itself. */
 const DONE_DISMISS_MS = 6000
 
 /**
@@ -16,15 +16,22 @@ export function RunWidget({ onView }: { onView: () => void }) {
   const { runId, run, error, dismiss, abort, aborting, stalled } = useActiveRun()
   const phase = runPhase(runId, run, error)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // Hides just the floating bar without forgetting the run, so the "New leads"
+  // tab survives. Reset whenever a new run starts so the bar comes back.
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => {
+    setHidden(false)
+  }, [runId])
 
-  // Once finished, let the success bar breathe for a moment, then clear it.
+  // Once finished, let the success bar breathe for a moment, then hide it — but
+  // keep the run state alive so the "New leads" tab stays until the next run.
   useEffect(() => {
     if (phase !== 'done') return
-    const t = setTimeout(dismiss, DONE_DISMISS_MS)
+    const t = setTimeout(() => setHidden(true), DONE_DISMISS_MS)
     return () => clearTimeout(t)
-  }, [phase, dismiss])
+  }, [phase])
 
-  if (phase === 'config') return null
+  if (phase === 'config' || hidden) return null
 
   const prog = progressFor(run)
   const busy = phase === 'running'

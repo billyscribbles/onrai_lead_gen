@@ -23,3 +23,15 @@ const PLATFORM_LABEL: Record<string, string> = {
 export function platformLabel(p: string | null): string {
   return p ? PLATFORM_LABEL[p] ?? 'Social' : ''
 }
+
+/**
+ * Bucket a 0–100 heat score into a colour band for the signal meter.
+ * Bands line up with the tier bases in `heatFor` so a top-tier lead
+ * (social_only, ~72+) reads "hot", clean no-website gaps read "warm",
+ * and the lower-confidence redesign buckets read "cool".
+ */
+export function heatLevel(heat: number): 'hot' | 'warm' | 'cool' {
+  if (heat >= 72) return 'hot'
+  if (heat >= 56) return 'warm'
+  return 'cool'
+}

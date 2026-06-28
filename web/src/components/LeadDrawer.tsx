@@ -28,35 +28,6 @@ export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
               <Close />
             </button>
 
-            <div className="drawer__status">
-              <button
-                type="button"
-                className={`iconbtn ${lead.userStatus === 'favourite' ? 'is-fav' : ''}`}
-                aria-pressed={lead.userStatus === 'favourite'}
-                onClick={() =>
-                  onSetStatus(
-                    lead.dbId,
-                    lead.userStatus === 'favourite' ? 'normal' : 'favourite',
-                  )
-                }
-              >
-                <Star /> {lead.userStatus === 'favourite' ? 'Favourited' : 'Favourite'}
-              </button>
-              <button
-                type="button"
-                className={`iconbtn ${lead.userStatus === 'archived' ? 'is-arch' : ''}`}
-                aria-pressed={lead.userStatus === 'archived'}
-                onClick={() =>
-                  onSetStatus(
-                    lead.dbId,
-                    lead.userStatus === 'archived' ? 'normal' : 'archived',
-                  )
-                }
-              >
-                <Archive /> {lead.userStatus === 'archived' ? 'Archived' : 'Archive'}
-              </button>
-            </div>
-
             <span className={`tag tag--t${lead.tier}`}>{lead.tierLabel}</span>
             <h2 className="drawer__name">{lead.name}</h2>
             <p className="drawer__meta">
@@ -140,6 +111,35 @@ export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
                   <Search /> Google
                 </a>
               )}
+            </div>
+
+            <div className="drawer__toggles">
+              <button
+                type="button"
+                className={`togglebtn togglebtn--fav ${lead.userStatus === 'favourite' ? 'is-on' : ''}`}
+                aria-pressed={lead.userStatus === 'favourite'}
+                onClick={() =>
+                  onSetStatus(
+                    lead.dbId,
+                    lead.userStatus === 'favourite' ? 'normal' : 'favourite',
+                  )
+                }
+              >
+                <Star /> {lead.userStatus === 'favourite' ? 'Favourited' : 'Favourite'}
+              </button>
+              <button
+                type="button"
+                className={`togglebtn togglebtn--arch ${lead.userStatus === 'archived' ? 'is-on' : ''}`}
+                aria-pressed={lead.userStatus === 'archived'}
+                onClick={() =>
+                  onSetStatus(
+                    lead.dbId,
+                    lead.userStatus === 'archived' ? 'normal' : 'archived',
+                  )
+                }
+              >
+                <Archive /> {lead.userStatus === 'archived' ? 'Archived' : 'Archive'}
+              </button>
             </div>
           </div>
         )}

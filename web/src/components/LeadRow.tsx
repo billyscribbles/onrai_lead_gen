@@ -1,6 +1,6 @@
 import type { Lead, UserStatus } from '../types'
-import { compact, platformLabel, telHref } from '../lib/format'
-import { Archive, MapPin, Phone, Search, SocialIcon, Star } from './Icons'
+import { compact, heatLevel, platformLabel } from '../lib/format'
+import { Phone, Search, SocialIcon, Star } from './Icons'
 
 interface Props {
   lead: Lead
@@ -64,8 +64,8 @@ export function LeadRow({ lead, rank, onSelect, onSetStatus }: Props) {
       <div className="row__heat" title={`Heat ${lead.heat}/100`}>
         <span className="row__heat-track">
           <span
-            className="row__heat-mask"
-            style={{ width: `${100 - lead.heat}%` }}
+            className={`row__heat-fill row__heat-fill--${heatLevel(lead.heat)}`}
+            style={{ width: `${lead.heat}%` }}
           />
         </span>
         <span className="row__heat-num">{lead.heat}</span>
@@ -87,36 +87,6 @@ export function LeadRow({ lead, rank, onSelect, onSetStatus }: Props) {
         >
           <Star />
         </button>
-        <button
-          type="button"
-          className={`iconbtn ${lead.userStatus === 'archived' ? 'is-arch' : ''}`}
-          title={lead.userStatus === 'archived' ? 'Unarchive' : 'Archive'}
-          aria-pressed={lead.userStatus === 'archived'}
-          aria-label="Archive lead"
-          onClick={() =>
-            onSetStatus(
-              lead.dbId,
-              lead.userStatus === 'archived' ? 'normal' : 'archived',
-            )
-          }
-        >
-          <Archive />
-        </button>
-        {lead.hasPhone && (
-          <a className="iconbtn" href={telHref(lead.phone)} title="Call" aria-label={`Call ${lead.name}`}>
-            <Phone />
-          </a>
-        )}
-        {lead.website && (
-          <a className="iconbtn" href={lead.website} target="_blank" rel="noreferrer" title="Open social" aria-label="Open social profile">
-            <SocialIcon platform={lead.social} />
-          </a>
-        )}
-        {lead.mapsUrl && (
-          <a className="iconbtn" href={lead.mapsUrl} target="_blank" rel="noreferrer" title="Google Maps" aria-label="Open in Google Maps">
-            <MapPin />
-          </a>
-        )}
         {lead.searchUrl && (
           <a className="iconbtn" href={lead.searchUrl} target="_blank" rel="noreferrer" title="Google Search" aria-label="Search on Google">
             <Search />

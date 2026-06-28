@@ -1,4 +1,4 @@
-import { LogOut, Plus, Rows, Search, Signal } from './Icons'
+import { LogOut, Plus, Rows, Signal } from './Icons'
 
 export type View = 'leads' | 'generate'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
@@ -86,17 +86,6 @@ export function FilterRail({
         </p>
       ) : (
         <>
-      <div className="rail__search">
-        <Search className="rail__search-icon" />
-        <input
-          type="search"
-          placeholder="Search name, suburb, category"
-          value={filters.query}
-          onChange={(e) => onChange({ query: e.target.value })}
-          aria-label="Search leads"
-        />
-      </div>
-
       <nav className="rail__group" aria-label="Status">
         <p className="rail__label">Signal tier</p>
         {STATUS.map((s) => (

@@ -1108,10 +1108,12 @@ button {
   color: var(--ink);
   font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
   transition: all 0.13s;
 }
 
 .btn svg {
+  flex: none;
   width: 15px;
   height: 15px;
 }

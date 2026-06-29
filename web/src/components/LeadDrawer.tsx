@@ -98,8 +98,7 @@ export function LeadDrawer({ lead, onClose, onSetStatus }: Props) {
               )}
               {lead.website && (
                 <a className="btn" href={lead.website} target="_blank" rel="noreferrer">
-                  <SocialIcon platform={lead.social} /> Message on{' '}
-                  {platformLabel(lead.social)}
+                  <SocialIcon platform={lead.social} /> Message
                 </a>
               )}
               {lead.mapsUrl && (

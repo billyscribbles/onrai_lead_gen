@@ -12,6 +12,7 @@ import { RunWidget } from './RunWidget'
 import { useActiveRun } from '../run/RunProvider'
 import { TableFilters } from './TableFilters'
 import { Pager } from './Pager'
+import { Menu, Signal } from './Icons'
 
 const DEFAULT_FILTERS: Filters = {
   query: '',
@@ -51,6 +52,14 @@ export function Dashboard({
 
   const [active, setActive] = useState<Lead | null>(null)
   const [view, setView] = useState<'leads' | 'generate' | 'new'>('leads')
+  // Mobile only: the slide-in nav drawer. Hidden entirely on desktop via CSS.
+  const [navOpen, setNavOpen] = useState(false)
+
+  // Navigating to a view from the slide-in nav should also close it.
+  const navigate = useCallback((next: 'leads' | 'generate' | 'new') => {
+    setView(next)
+    setNavOpen(false)
+  }, [])
 
   // The "New leads" view is tied to a finished run: it shows just that run's
   // results, fetched directly (run_id filter, newest first). A single run targets
@@ -107,15 +116,41 @@ export function Dashboard({
   }
 
   return (
-    <div className="app">
+    <div className={`app ${navOpen ? 'app--nav-open' : ''}`}>
+      <header className="topbar">
+        <span className="topbar__brand">
+          <span className="brand__mark" aria-hidden="true">
+            <Signal />
+          </span>
+          <strong>ONRAI STUDIO</strong>
+        </span>
+        <button
+          type="button"
+          className="topbar__menu"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={navOpen}
+        >
+          <Menu />
+        </button>
+      </header>
+
+      <div
+        className={`nav-scrim ${navOpen ? 'is-open' : ''}`}
+        onClick={() => setNavOpen(false)}
+        aria-hidden="true"
+      />
+
       <FilterRail
         filters={filters}
         counts={counts}
         onChange={update}
         view={view}
-        onNavigate={setView}
+        onNavigate={navigate}
         newLeads={finishedRun ? { count: runLeads.length } : undefined}
         onLogout={canLogout ? handleLogout : undefined}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
       />
 
       <main className="desk">

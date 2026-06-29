@@ -935,7 +935,9 @@ button {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s;
-  z-index: 20;
+  /* Above the mobile top bar (30) and the floating run bar (50) so the lead
+     tray reads as a true modal on every screen size. */
+  z-index: 55;
 }
 
 .scrim.is-open {
@@ -953,7 +955,7 @@ button {
   box-shadow: var(--shadow-lg);
   transform: translateX(100%);
   transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
-  z-index: 21;
+  z-index: 56;
   overflow: hidden;
 }
 
@@ -1130,69 +1132,360 @@ button {
   background: var(--signal-ink);
 }
 
+/* ===================== Mobile chrome (hidden on desktop) ============== */
+
+/* Sticky top bar with brand + hamburger — only rendered on small screens. */
+.topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.topbar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar__brand .brand__mark {
+  width: 32px;
+  height: 32px;
+  box-shadow: none;
+}
+
+.topbar__brand .brand__mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.topbar__brand strong {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.topbar__menu {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.topbar__menu svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Dimmer behind the slide-in nav. */
+.nav-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  background: rgba(20, 22, 26, 0.4);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s;
+}
+
+.nav-scrim.is-open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* In-rail close button — only shown when the rail is a slide-in panel. */
+.rail__close {
+  display: none;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.rail__close svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ============================ Responsive ============================= */
 
 @media (max-width: 980px) {
+  /* Single column; the nav rail becomes an off-canvas slide-in drawer driven
+     by the sticky top bar's hamburger. */
   .app {
     grid-template-columns: 1fr;
   }
 
-  .rail {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 14px;
+  .topbar {
+    display: flex;
   }
 
-  .rail__foot {
+  .nav-scrim {
+    display: block;
+  }
+
+  .rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 39;
+    width: min(320px, 86vw);
+    height: 100vh;
+    height: 100dvh;
+    padding-top: 60px; /* clear the close button */
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .rail.is-open {
+    transform: translateX(0);
+  }
+
+  .rail__close {
+    display: grid;
+  }
+
+  /* The brand lives in the top bar on mobile, so hide the in-rail one. */
+  .rail > .brand {
     display: none;
   }
 
-  .rail__group,
-  .rail__search {
-    flex: 1 1 180px;
+  .desk {
+    padding: 22px 18px 96px;
+  }
+
+  .desk__title {
+    font-size: 23px;
   }
 
   .stat-strip {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .sheet__head,
-  .row {
-    grid-template-columns: 2rem minmax(0, 1fr) 6rem 6.4rem;
+  /* ---- Lead rows reflow from a table into stacked cards ---- */
+  .sheet__head {
+    display: none;
   }
 
-  .sheet__head span:nth-child(5),
-  .sheet__head span:nth-child(6),
-  .sheet__head span:nth-child(7),
-  .sheet__head span:nth-child(8),
-  .row__reach,
-  .row__heat,
-  .row__date,
-  .row__actions {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id      tag'
+      'data    heat'
+      'reach   reach'
+      'actions actions';
+    align-items: start;
+    gap: 9px 12px;
+    padding: 16px;
+  }
+
+  .row__rank,
+  .row__date {
     display: none;
+  }
+
+  .row__id {
+    grid-area: id;
+  }
+
+  /* Let long business names / categories wrap rather than truncate on a phone. */
+  .row__name,
+  .row__meta {
+    white-space: normal;
+  }
+
+  .row .tag {
+    grid-area: tag;
+    justify-self: end;
+  }
+
+  .row__data {
+    grid-area: data;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .row__heat {
+    grid-area: heat;
+    justify-content: flex-end;
+  }
+
+  .row__reach {
+    grid-area: reach;
+  }
+
+  .row__reach:empty {
+    display: none;
+  }
+
+  /* Quick actions are hover-revealed on desktop; touch has no hover, so the
+     card keeps them visible and gives them full-size tap targets. */
+  .row__actions {
+    grid-area: actions;
+    justify-content: flex-start;
+    opacity: 1;
+  }
+
+  .iconbtn {
+    width: 38px;
+    height: 38px;
+  }
+
+  /* ---- Table filter bar stacks to full-width controls ---- */
+  .tablebar {
+    gap: 10px;
+  }
+
+  .tablebar__buckets {
+    width: 100%;
+  }
+
+  .bucket {
+    flex: 1;
+    text-align: center;
+  }
+
+  .tablebar__field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  /* iOS zooms the page when a focused input is under 16px — keep form text at
+     16px on touch to avoid the jarring zoom. */
+  .tablebar__search input,
+  .tablebar__select select,
+  .gen__field input,
+  .gen__select select,
+  .gen__inline input,
+  .auth__field input {
+    font-size: 16px;
   }
 }
 
 @media (max-width: 560px) {
   .desk {
-    padding: 22px 16px 50px;
+    padding: 18px 13px 96px;
+  }
+
+  .desk__head {
+    margin-bottom: 16px;
   }
 
   .stat-strip {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .sheet__head,
-  .row {
-    grid-template-columns: 1.6rem minmax(0, 1fr) 5.6rem;
+  .stat {
+    padding: 13px 13px 14px;
   }
 
-  .sheet__head span:nth-child(4),
-  .row__data {
-    display: none;
+  .stat__value {
+    font-size: 22px;
+  }
+
+  /* Drawer actions become an easy two-up grid of large buttons. */
+  /* ---- Lead tray becomes a bottom sheet on phones ---- */
+  .drawer {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: 90vh;
+    max-height: 90dvh;
+    border-radius: 18px 18px 0 0;
+    /* Slide up from the bottom rather than in from the right. */
+    transform: translateY(100%);
+  }
+
+  .drawer.is-open {
+    transform: translateY(0);
+  }
+
+  .drawer__inner {
+    max-height: 90vh;
+    max-height: 90dvh;
+  }
+
+  /* Grab-handle affordance at the top of the sheet. */
+  .drawer__inner::before {
+    content: '';
+    position: absolute;
+    top: 9px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 42px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--line);
+    z-index: 1;
+  }
+
+  .drawer__scroll {
+    padding: 32px 20px 18px;
+  }
+
+  .drawer__close {
+    top: 13px;
+    right: 13px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .drawer__actions .btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    padding: 11px 12px;
+  }
+
+  /* Runbar hugs the screen and lets its controls wrap on narrow phones. */
+  .runbar {
+    width: calc(100vw - 20px);
+    bottom: 12px;
+    padding: 11px 14px;
+  }
+
+  .runbar__row {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+
+  /* Generate: estimate + run button stack to full width. */
+  .gen__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gen__go-group {
+    display: flex;
+    width: 100%;
+  }
+
+  .gen__go {
+    flex: 1;
+    width: 100%;
   }
 }
 

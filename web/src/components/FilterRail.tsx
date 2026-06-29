@@ -1,4 +1,4 @@
-import { LogOut, Plus, Rows, Signal, Star } from './Icons'
+import { Close, LogOut, Plus, Rows, Signal, Star } from './Icons'
 
 export type View = 'leads' | 'generate' | 'new'
 export type StatusFilter = 'all' | 'top' | 'social_only' | 'none'
@@ -37,6 +37,10 @@ interface Props {
   newLeads?: { count: number }
   /** When set (a password is configured), render a sign-out button. */
   onLogout?: () => void
+  /** Mobile: whether the slide-in nav is open. Ignored on desktop. */
+  open?: boolean
+  /** Mobile: close the slide-in nav (also wired to the in-rail close button). */
+  onClose?: () => void
 }
 
 export function FilterRail({
@@ -47,9 +51,19 @@ export function FilterRail({
   onNavigate,
   newLeads,
   onLogout,
+  open,
+  onClose,
 }: Props) {
   return (
-    <aside className="rail">
+    <aside className={`rail ${open ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="rail__close"
+        onClick={onClose}
+        aria-label="Close menu"
+      >
+        <Close />
+      </button>
       <div className="brand">
         <span className="brand__mark" aria-hidden="true">
           <Signal />
